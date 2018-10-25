@@ -11,10 +11,8 @@ import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth'
 import * as V from "./views"
 import { DB } from "./db"
 
-let apiKey = window.location.hash
-if (apiKey.startsWith("#")) apiKey = apiKey.substring(1)
 firebase.initializeApp({
-  apiKey: apiKey,
+  apiKey: "AIzaSyDy3Caew0ql16PM0x7laFXTcs6jih_-e8o",
   authDomain: "input-output-26476.firebaseapp.com",
   projectId: "input-output-26476",
 })
