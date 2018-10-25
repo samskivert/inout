@@ -118,6 +118,13 @@ export class JournumStore {
     this._setDate(startDate)
   }
 
+  close () {
+    if (this.current) {
+      this.current.close()
+      this.current = undefined
+    }
+  }
+
   setDate (date :Date) {
     if (M.toStamp(date) !== M.toStamp(this.currentDate)) {
       this.currentDate = date
