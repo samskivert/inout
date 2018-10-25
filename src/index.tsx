@@ -1,60 +1,53 @@
-import * as React from 'react';
-import * as ReactDOM from 'react-dom';
-import * as firebase from 'firebase'
-import { observable } from 'mobx'
-import { observer } from 'mobx-react'
+import * as React from "react";
+import * as ReactDOM from "react-dom";
+import * as firebase from "firebase"
+import * as V from "./views"
+// import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth'
+import { DB } from "./db"
 
 let apiKey = window.location.hash
-if (apiKey.startsWith('#')) apiKey = apiKey.substring(1)
-console.log(`API key ${apiKey}`)
-
-// initialize firebase and create our database
+if (apiKey.startsWith("#")) apiKey = apiKey.substring(1)
 firebase.initializeApp({
   apiKey: apiKey,
   authDomain: "input-output-26476.firebaseapp.com",
   projectId: "input-output-26476",
-});
-
-let db = firebase.firestore();
-db.settings({
-  timestampsInSnapshots: true
-});
-db.enablePersistence().catch(error => {
-  console.warn(`Failed to enable offline mode: ${error}`)
 })
 
-export class TestStore {
-  @observable text = ""
+// // Configure FirebaseUI.
+// const uiConfig = {
+//   // Popup signin flow rather than redirect flow.
+//   signInFlow: 'popup',
+//   // Redirect to /signedIn after sign in is successful. Alternatively you can provide a callbacks.signInSuccess function.
+//   signInSuccessUrl: '/signedIn',
+//   // We will display Google and Facebook as auth providers.
+//   signInOptions: [
+//     firebase.auth.GoogleAuthProvider.PROVIDER_ID,
+//     firebase.auth.FacebookAuthProvider.PROVIDER_ID
+//   ]
+// };
+
+// class SignInScreen extends React.Component {
+//   render() {
+//     return (
+//       <div>
+//         <h1>Input/Output</h1>
+//         <p>Please sign-in:</p>
+//         <StyledFirebaseAuth uiConfig={uiConfig} firebaseAuth={firebase.auth()}/>
+//       </div>
+//     );
+//   }
+// }
+
+class AppStore {
+  readonly db = new DB()
 }
+const appStore = new AppStore()
 
-const store = new TestStore()
-const docRef = db.collection("test").doc("test")
-docRef.onSnapshot(doc => {
-  const data = doc.data()
-  if (data) {
-    console.log("Current data: ", data)
-    store.text = data.text
-  }
-});
-
-@observer
-export class Test extends React.Component<{store :TestStore}> {
-
+class AppView extends React.Component<{store :AppStore}> {
   render () {
     const store = this.props.store
-    return (
-      <div>
-        <div>Text:</div>
-        <input value={store.text} onChange={ev => store.text = ev.currentTarget.value} />
-        <button onClick={() => this.saveText()}>Save</button>
-      </div>
-    )
-  }
-
-  saveText () {
-    console.log(`Saving: '${this.props.store.text}'`)
-    docRef.set({text: this.props.store.text})
+    return <V.JournumView store={new V.JournumStore(store.db, new Date())} />
   }
 }
 
-ReactDOM.render(<Test store={store} />, document.getElementById('root'));
+ReactDOM.render(<AppView store={appStore} />, document.getElementById("app-root"))
