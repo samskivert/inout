@@ -6,10 +6,6 @@ module.exports = {
     extensions: ['.js', '.ts', '.tsx']
   },
 
-  devtool: 'source-map',
-
-  mode: 'development',
-
   module: {
     rules: [{
       test: /\.tsx?$/,
@@ -18,10 +14,7 @@ module.exports = {
     }]
   },
 
-  entry: [
-    'webpack-dev-server/client?http://localhost:3000',
-    './src/index'
-  ],
+  entry: ['./src/index'],
 
   output: {
     path: path.join(__dirname, 'dist'),
