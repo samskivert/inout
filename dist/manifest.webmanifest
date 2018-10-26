@@ -1,0 +1,7 @@
+{
+  "name": "Input/Output",
+  "short_name": "I/O",
+  "description": "An app to track the input to and output from your brain.",
+  "display": "standalone",
+  "icons": [{"src": "app-icon.png", "sizes": "512x512"}]
+}
