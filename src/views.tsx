@@ -2,10 +2,11 @@ import * as React from "react";
 import { computed, observable } from "mobx"
 import { observer } from "mobx-react"
 import {
-  AppBar, IconButton, Input, List, ListItem, ListItemText, TextField, Toolbar, Typography
+  AppBar, Button, IconButton, Input, List, ListItem, ListItemText, TextField, Toolbar, Typography,
+  WithStyles, createStyles, withStyles
 } from '@material-ui/core';
 import * as Icons from '@material-ui/icons';
-import { WithStyles, createStyles, withStyles } from '@material-ui/core';
+import * as firebase from "firebase"
 import { DB } from "./db"
 import * as M from "./model"
 
@@ -197,10 +198,12 @@ class JournumViewX extends React.Component<JVProps> {
             </Typography>
             {menuButton(<Icons.ArrowRight />, () => store.rollDate(+1))}
             {store.pickingDate ?
-             <TextField autoFocus color="inherit" type="date" value={store.pickingDate}
-               onChange={ev => store.updatePick(ev.currentTarget.value)}
-               onBlur={ev => store.commitPick()} /> :
-             menuButton(<Icons.CalendarToday />, () => store.startPick())}
+            <TextField autoFocus color="inherit" type="date" value={store.pickingDate}
+              onChange={ev => store.updatePick(ev.currentTarget.value)}
+              onBlur={ev => store.commitPick()} /> :
+            menuButton(<Icons.CalendarToday />, () => store.startPick())}
+            <Typography className={classes.grow} variant="h6" color="inherit"></Typography>
+            <Button color="inherit" onClick={() => firebase.auth().signOut()}>Logout</Button>
           </Toolbar>
         </AppBar>
         <List>{

@@ -18,7 +18,7 @@ firebase.initializeApp({
 })
 
 const authConfig = {
-  signInFlow: 'popup',
+  signInFlow: 'redirect',
   signInOptions: [
     firebase.auth.GoogleAuthProvider.PROVIDER_ID,
     firebase.auth.EmailAuthProvider.PROVIDER_ID,
