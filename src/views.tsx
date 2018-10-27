@@ -2,7 +2,7 @@ import * as React from "react";
 import { computed, observable } from "mobx"
 import { observer } from "mobx-react"
 import {
-  AppBar, Button, IconButton, Input, List, ListItem, ListItemText, TextField, Toolbar, Typography,
+  AppBar, IconButton, Input, List, ListItem, ListItemText, TextField, Toolbar, Typography,
   WithStyles, createStyles, withStyles
 } from '@material-ui/core';
 import * as Icons from '@material-ui/icons';
@@ -64,27 +64,36 @@ function menuButton (icon :JSX.Element, onClick :() => void) :JSX.Element {
   return <IconButton color="inherit" aria-label="Menu" onClick={onClick}>{icon}</IconButton>
 }
 
+const menuIcon = <Icons.Adjust fontSize="inherit" />
+const doneIcon = <Icons.Done fontSize="inherit" />
+const cancelIcon = <Icons.Cancel fontSize="inherit" />
+const editIcon = <Icons.Edit fontSize="inherit" />
+const deleteIcon = <Icons.Delete fontSize="inherit" />
+const upIcon = <Icons.ArrowUpward fontSize="inherit" />
+const downIcon = <Icons.ArrowDownward fontSize="inherit" />
+
 @observer
 class EntryViewX extends React.Component<EVProps> {
 
   render () {
     const {store, classes} = this.props
+    const editing = store.editText !== undefined
     return (
-      <ListItem>
+      <ListItem disableGutters>
+        {menuButton(menuIcon, () => store.showMenu = !store.showMenu)}
+        {store.showMenu && menuButton(upIcon, () => store.moveEntry(-1))}
+        {store.showMenu && menuButton(downIcon, () => store.moveEntry(1))}
+        {store.showMenu && menuButton(deleteIcon, () => store.deleteEntry())}
+        {store.showMenu && !editing &&
+         menuButton(editIcon, () => store.startEdit())}
         {store.editText === undefined ?
           <ListItemText primary={store.entry.text}
                         onClick={ev => ev.shiftKey && store.startEdit()} /> :
           <Input autoFocus value={store.editText} className={classes.editor}
                  onChange={ev => store.editText = ev.currentTarget.value}
                  onKeyDown={ev => store.handleEdit(ev.key)} />}
-        {store.editText !== undefined && menuButton(<Icons.Done />, () => store.commitEdit())}
-        {store.editText !== undefined && menuButton(<Icons.Cancel />, () => store.cancelEdit())}
-        {store.showMenu && store.editText === undefined &&
-         menuButton(<Icons.Edit />, () => store.startEdit())}
-        {store.showMenu && menuButton(<Icons.Delete />, () => store.deleteEntry())}
-        {store.showMenu && menuButton(<Icons.ArrowUpward />, () => store.moveEntry(-1))}
-        {store.showMenu && menuButton(<Icons.ArrowDownward />, () => store.moveEntry(1))}
-        {menuButton(<Icons.Menu />, () => store.showMenu = !store.showMenu)}
+        {editing && menuButton(doneIcon, () => store.commitEdit())}
+        {editing && menuButton(cancelIcon, () => store.cancelEdit())}
       </ListItem>
     )
   }
@@ -175,6 +184,9 @@ const jvStyles = createStyles({
   grow: {
     flexGrow: 1,
   },
+  spacing: {
+    unit: 4,
+  },
 })
 
 interface JVProps extends WithStyles<typeof jvStyles> {
@@ -203,14 +215,14 @@ class JournumViewX extends React.Component<JVProps> {
               onBlur={ev => store.commitPick()} /> :
             menuButton(<Icons.CalendarToday />, () => store.startPick())}
             <Typography className={classes.grow} variant="h6" color="inherit"></Typography>
-            <Button color="inherit" onClick={() => firebase.auth().signOut()}>Logout</Button>
+            <IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
+              <Icons.CloudOff /></IconButton>
           </Toolbar>
         </AppBar>
-        <List>{
-          journum === undefined ? <ListItem><ListItemText primary="Loading..." /></ListItem> :
-          entries.length === 0 ? <ListItem><ListItemText primary="No entries..." /></ListItem> :
-          entries.map((es, ii) => <EntryView key={ii} store={es} />)
-        }
+        <List>
+          {journum === undefined ? <ListItem><ListItemText primary="Loading..." /></ListItem> :
+           entries.length === 0 ? <ListItem><ListItemText primary="No entries..." /></ListItem> :
+           entries.map((es, ii) => <EntryView key={ii} store={es} />)}
           <ListItem>
             <Input type="text" className={classes.grow} placeholder="Add entry..."
                    value={store.newEntry}
