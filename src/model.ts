@@ -107,14 +107,26 @@ export abstract class Item extends Doc {
   }
 }
 
-export class Buildable extends Item {
-  @observable text :string = ""
+export abstract class Protracted extends Item {
   @observable started :Date|void = undefined
 
   constructor (ref :Ref, data :Data) {
     super(ref, data)
-    this.noteSync(this, "text")
     this.noteSync(this, "started")
+  }
+
+  protected readProps (data :Data) {
+    super.readProps(data)
+    this.started = data.started
+  }
+}
+
+export class Build extends Protracted {
+  @observable text :string = ""
+
+  constructor (ref :Ref, data :Data) {
+    super(ref, data)
+    this.noteSync(this, "text")
   }
 
   protected readProps (data :Data) {
@@ -124,7 +136,7 @@ export class Buildable extends Item {
   }
 }
 
-export class Doable extends Item {
+export class Do extends Item {
   @observable text :string = ""
 
   constructor (ref :Ref, data :Data) {
@@ -140,7 +152,7 @@ export class Doable extends Item {
 
 export enum Rating { BAD, MEH, OK, GOOD, GREAT }
 
-export abstract class Consumable extends Item {
+export abstract class Consume extends Item {
   @observable rating :Rating|void = undefined
   @observable recommender :string|void = undefined
 
@@ -157,40 +169,40 @@ export abstract class Consumable extends Item {
   }
 }
 
-// export enum ReadableType { POST, PAPER, BOOK }
+// export enum ReadType { POST, PAPER, BOOK }
 // export enum Outcome { ABANDONED, FINISHED }
 
-// export interface Readable extends Consumable {
-//   type :ReadableType
+// export interface Read extends Consumable {
+//   type :ReadType
 //   title :string
 //   author :string
 //   started :Date|void
 //   outcome :Outcome|void
 // }
 
-// export interface Playable extends Consumable {
+// export interface Play extends Consumable {
 //   title :string
 //   started :Date|void
 //   outcome :Outcome|void
 // }
 
-// export enum ListenableType { SONG, ALBUM, OTHER }
+// export enum ListenType { SONG, ALBUM, OTHER }
 
-// export interface Listenable extends Consumable {
-//   type :ListenableType
+// export interface Listen extends Consumable {
+//   type :ListenType
 //   title :string
 //   artist :string
 // }
 
-// export enum SeeableType { SHOW, FILM, VIDEO, OTHER }
+// export enum SeeType { SHOW, FILM, VIDEO, OTHER }
 
-// export interface Seeable extends Consumable {
-//   type :SeeableType
+// export interface See extends Consumable {
+//   type :SeeType
 //   title :string
 //   director :string|void
 // }
 
-// export interface Dineable extends Consumable {
+// export interface Dine extends Consumable {
 //   name :string
 //   location :string
 // }

@@ -62,7 +62,7 @@ export class DB {
   db = firebase.firestore()
   uid :string = "none"
   buildables = new ItemCollection(() => this.userCollection("buildables"),
-                                  (ref, data) => new M.Buildable(ref, data))
+                                  (ref, data) => new M.Build(ref, data))
 
   constructor () {
     this.db.settings({timestampsInSnapshots: true})

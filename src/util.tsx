@@ -7,6 +7,8 @@ export function formatDate (date :Date) :string {
   return date.toLocaleDateString(locale, dateFmtOpts)
 }
 
-export function menuButton (icon :JSX.Element, onClick :() => void) :JSX.Element {
-  return <UI.IconButton color="inherit" aria-label="Menu" onClick={onClick}>{icon}</UI.IconButton>
+export function menuButton (key :string, icon :JSX.Element, onClick :() => void) :JSX.Element {
+  return <UI.IconButton key={key} color="inherit" aria-label="Menu" onClick={onClick}>
+    {icon}
+  </UI.IconButton>
 }

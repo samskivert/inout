@@ -42,7 +42,7 @@ const lvStyles = ({ palette, spacing }: UI.Theme) => UI.createStyles({
   },
 })
 
-class LoginViewX extends React.Component<UI.WithStyles<typeof lvStyles>> {
+class LoginViewRaw extends React.Component<UI.WithStyles<typeof lvStyles>> {
   render () {
     const classes = this.props.classes
     return (
@@ -60,7 +60,7 @@ class LoginViewX extends React.Component<UI.WithStyles<typeof lvStyles>> {
     )
   }
 }
-const LoginView = UI.withStyles(lvStyles)(LoginViewX)
+const LoginView = UI.withStyles(lvStyles)(LoginViewRaw)
 
 const avStyles = (theme :UI.Theme) => UI.createStyles({
   root: {
@@ -79,7 +79,7 @@ interface AVProps extends UI.WithStyles<typeof avStyles> {
 }
 
 @observer
-export class AppViewX extends React.Component<AVProps> {
+export class AppViewRaw extends React.Component<AVProps> {
 
   render () {
     // we have to check user to ensure an observable depend, meh
@@ -87,8 +87,8 @@ export class AppViewX extends React.Component<AVProps> {
 
     const toolbar = (user && stores) ? (
       <UI.Toolbar>
-        {menuButton(<Icons.CalendarToday />, () => store.mode = S.Tab.JOURNAL)}
-        {menuButton(<Icons.Build />, () => store.mode = S.Tab.BUILD)}
+        {menuButton("journal", <Icons.CalendarToday />, () => store.mode = S.Tab.JOURNAL)}
+        {menuButton("build", <Icons.Build />, () => store.mode = S.Tab.BUILD)}
         <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
         <UI.IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
           <Icons.CloudOff /></UI.IconButton>
@@ -112,9 +112,9 @@ export class AppViewX extends React.Component<AVProps> {
     const mode = this.props.store.mode
     switch (mode) {
     case S.Tab.JOURNAL: return <V.JournumView store={stores.journal} />
-    case   S.Tab.BUILD: return <V.CurrentItemsView store={stores.build} />
+    case   S.Tab.BUILD: return <V.ToBuildView store={stores.build} />
     default:            return <div>TODO: handle {mode}</div>
     }
   }
 }
-export const AppView = UI.withStyles(avStyles)(AppViewX)
+export const AppView = UI.withStyles(avStyles)(AppViewRaw)

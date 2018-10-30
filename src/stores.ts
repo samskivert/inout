@@ -3,10 +3,14 @@ import * as firebase from "firebase"
 import * as DB from "./db"
 import * as M from "./model"
 
-export abstract class ItemStore {
+//
+// A view model for a "row" displayed in a list (journal entry or to-x item)
+
+export abstract class RowStore {
   @observable editText :string|void = undefined
   @observable showMenu = false
 
+  abstract get key () :string
   abstract getText () :string
   abstract setText (text :string) :void
   abstract moveItem (delta :number) :void
@@ -30,7 +34,41 @@ export abstract class ItemStore {
   }
 }
 
-export abstract class CurrentItemsStore<I extends M.Item> {
+//
+// View models for to-x items
+
+export abstract class ItemStore extends RowStore {
+
+  abstract get item () :M.Item
+
+  get key () :string { return this.item.ref.id }
+
+  deleteItem () {
+    this.item.ref.delete().catch(error => {
+      console.warn(`Failed to delete item [${this.item.ref.id}]: ${error}`)
+      // TODO: feedback in UI
+    })
+  }
+}
+
+export class BuildStore extends ItemStore {
+
+  constructor (readonly item :M.Build) { super() }
+
+  getText () :string { return this.item.text }
+  setText (text :string) { this.item.text = text }
+  moveItem (delta :number) { /*TODO*/ }
+}
+
+//
+// View models for to-x lists
+
+type Partition = {
+  title :string,
+  stores :ItemStore[]
+}
+
+export abstract class ToXStore<I extends M.Item> {
   readonly items :DB.Items<I>
 
   @observable newItem :string = ""
@@ -42,6 +80,8 @@ export abstract class CurrentItemsStore<I extends M.Item> {
     }
     return stores
   }
+
+  abstract partitions () :Partition[]
 
   constructor (readonly coll :DB.ItemCollection<I>) {
     this.items = coll.items()
@@ -65,36 +105,39 @@ export abstract class CurrentItemsStore<I extends M.Item> {
   protected abstract newStore (item :I) :ItemStore
 }
 
-class BuildableStore extends ItemStore {
+export abstract class ToLongXStore<I extends M.Protracted> extends ToXStore<I> {
 
-  constructor (readonly build :M.Buildable) { super() }
+  abstract get title () :string
+  abstract get startedTitle () :string
 
-  getText () :string { return this.build.text }
-  setText (text :string) { this.build.text = text }
-  moveItem (delta :number) { /*TODO*/ }
-  deleteItem () {
-    this.build.ref.delete().catch(error => {
-      console.warn(`Failed to delete buildable: ${error}`)
-      // TODO: feedback in UI
-    })
+  partitions () :Partition[] {
+    const stores = this.itemStores
+    const pending = (store :ItemStore) => (store.item as M.Protracted).started === undefined
+    const parts = [{title: this.title, stores: stores.filter(pending)}]
+    const started = stores.filter(store => !pending(store))
+    if (started.length > 0) parts.unshift({title: this.startedTitle, stores: started})
+    return parts
   }
 }
 
-export class CurrentBuildablesStore extends CurrentItemsStore<M.Buildable> {
+export class ToBuildStore extends ToLongXStore<M.Build> {
 
-  constructor (db :DB.DB) {
-    super(db.buildables)
-  }
+  get title () :string { return "To Build" }
+  get startedTitle () :string { return "Building" }
 
-  protected newStore (item :M.Buildable) :ItemStore {
-    return new BuildableStore(item)
-  }
+  constructor (db :DB.DB) { super(db.buildables) }
+
+  protected newStore (item :M.Build) { return new BuildStore(item) }
 }
 
-class EntryStore extends ItemStore {
+//
+// View model for journal lists and entries there-in
+
+class EntryStore extends RowStore {
 
   constructor (readonly journum :M.Journum, readonly entry :M.Entry) { super() }
 
+  get key () :string { return this.entry.key }
   getText () :string { return this.entry.text }
   setText (text :string) { this.entry.text = text }
   moveItem (delta :number) { this.journum.moveEntry(this.entry.key, delta) }
@@ -178,13 +221,16 @@ export class JournumStore {
   }
 }
 
+//
+// View models for the top-level app
+
 export class Stores {
   journal :JournumStore
-  build :CurrentBuildablesStore
+  build :ToBuildStore
 
   constructor (db :DB.DB) {
     this.journal = new JournumStore(db, new Date())
-    this.build = new CurrentBuildablesStore(db)
+    this.build = new ToBuildStore(db)
   }
 
   close () {
@@ -198,7 +244,7 @@ export enum Tab { JOURNAL, BUILD, READ, SEE, LISTEN, PLAY, EAT, DO }
 export class AppStore {
   readonly db = new DB.DB()
   @observable user :firebase.User|null = null
-  @observable mode = Tab.JOURNAL
+  @observable mode = Tab.BUILD // Tab.JOURNAL
   // this can't be a @computed because of MobX tracking depends through a constructor into the
   // constructed object itself which is idiotic, but yay for magic
   stores :Stores|null = null
