@@ -51,7 +51,8 @@ export class ItemCollection<I extends M.Item> {
     return new Items<I>(query, this.decoder)
   }
 
-  async create (data :Data) :Promise<I> {
+  async create (text :string) :Promise<I> {
+    const data = {text, created: firebase.firestore.FieldValue.serverTimestamp(), completed: null}
     const docref = await this.col().add(data)
     return this.decoder(docref, data)
   }

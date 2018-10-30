@@ -1,4 +1,3 @@
-import { observable } from "mobx"
 import { observer } from "mobx-react"
 import * as React from "react";
 
@@ -7,9 +6,9 @@ import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth'
 
 import * as Icons from "./icons"
 import * as UI from "./ui"
+import * as S from "./stores"
 import * as V from "./views"
 import { menuButton } from "./util"
-import { DB } from "./db"
 
 const authConfig = {
   signInFlow: 'redirect',
@@ -63,44 +62,6 @@ class LoginViewX extends React.Component<UI.WithStyles<typeof lvStyles>> {
 }
 const LoginView = UI.withStyles(lvStyles)(LoginViewX)
 
-class Stores {
-  journal :V.JournumStore
-  build :V.CurrentBuildablesStore
-
-  constructor (db :DB) {
-    this.journal = new V.JournumStore(db, new Date())
-    this.build = new V.CurrentBuildablesStore(db)
-  }
-
-  close () {
-    this.journal.close()
-    this.build.close()
-  }
-}
-
-enum Tab { JOURNAL, BUILD, READ, SEE, LISTEN, PLAY, EAT, DO }
-
-export class AppStore {
-  readonly db = new DB()
-  @observable user :firebase.User|null = null
-  @observable mode = Tab.JOURNAL
-  // this can't be a @computed because of MobX tracking depends through a constructor into the
-  // constructed object itself which is idiotic, but yay for magic
-  stores :Stores|null = null
-
-  constructor () {
-    firebase.auth().onAuthStateChanged(user => {
-      if (user) console.log(`User logged in: ${user.uid}`)
-      else console.log('User logged out.')
-      this.db.setUserId(user ? user.uid : "none")
-      if (this.stores) this.stores.close()
-      if (user) this.stores = new Stores(this.db)
-      else this.stores = null
-      this.user = user
-    })
-  }
-}
-
 const avStyles = (theme :UI.Theme) => UI.createStyles({
   root: {
     flexGrow: 1,
@@ -114,7 +75,7 @@ const avStyles = (theme :UI.Theme) => UI.createStyles({
 })
 
 interface AVProps extends UI.WithStyles<typeof avStyles> {
-  store :AppStore
+  store :S.AppStore
 }
 
 @observer
@@ -126,8 +87,8 @@ export class AppViewX extends React.Component<AVProps> {
 
     const toolbar = (user && stores) ? (
       <UI.Toolbar>
-        {menuButton(<Icons.CalendarToday />, () => store.mode = Tab.JOURNAL)}
-        {menuButton(<Icons.Build />, () => store.mode = Tab.BUILD)}
+        {menuButton(<Icons.CalendarToday />, () => store.mode = S.Tab.JOURNAL)}
+        {menuButton(<Icons.Build />, () => store.mode = S.Tab.BUILD)}
         <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
         <UI.IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
           <Icons.CloudOff /></UI.IconButton>
@@ -147,12 +108,12 @@ export class AppViewX extends React.Component<AVProps> {
     )
   }
 
-  protected contentView (stores :Stores) :JSX.Element {
+  protected contentView (stores :S.Stores) :JSX.Element {
     const mode = this.props.store.mode
     switch (mode) {
-    case Tab.JOURNAL: return <V.JournumView store={stores.journal} />
-    case   Tab.BUILD: return <V.CurrentItemsView store={stores.build} />
-    default:          return <div>TODO: handle {mode}</div>
+    case S.Tab.JOURNAL: return <V.JournumView store={stores.journal} />
+    case   S.Tab.BUILD: return <V.CurrentItemsView store={stores.build} />
+    default:            return <div>TODO: handle {mode}</div>
     }
   }
 }

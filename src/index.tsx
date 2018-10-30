@@ -2,6 +2,7 @@ import * as React from "react";
 import * as ReactDOM from "react-dom";
 
 import * as firebase from "firebase"
+import * as S from "./stores"
 import * as A from "./app"
 import * as UI from "./ui"
 
@@ -48,7 +49,7 @@ const theme = UI.createMuiTheme({
   },
 });
 
-const appStore = new A.AppStore()
+const appStore = new S.AppStore()
 ReactDOM.render(
   <UI.MuiThemeProvider theme={theme}>
     <A.AppView store={appStore} />
