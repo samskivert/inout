@@ -1,68 +1,11 @@
 import * as React from "react";
 import { computed, observable } from "mobx"
 import { observer } from "mobx-react"
-import {
-  AppBar, IconButton, Input, List, ListItem, ListItemText, TextField, Toolbar, Typography,
-  WithStyles, createStyles, withStyles
-} from '@material-ui/core';
-import * as Icons from '@material-ui/icons';
-import * as firebase from "firebase"
-import { DB } from "./db"
+import * as UI from './ui';
+import * as Icons from './icons';
+import * as DB from "./db"
 import * as M from "./model"
-
-const dateFmtOpts = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
-function formatDate (date :Date) :string {
-  const locale = "en-US" // TODO: use browser locale?
-  return date.toLocaleDateString(locale, dateFmtOpts)
-}
-
-class EntryStore {
-  @observable editText :string|void = undefined
-  @observable showMenu = false
-
-  constructor (readonly journum :M.Journum, readonly entry :M.Entry) {}
-
-  startEdit () {
-    this.editText = this.entry.text
-  }
-  handleEdit (key :string) {
-    if (key === "Escape") this.cancelEdit()
-    else if (key === "Enter") this.commitEdit()
-  }
-  commitEdit () {
-    if (this.editText) {
-      this.entry.text = this.editText
-    }
-    this.editText = undefined
-  }
-  cancelEdit () {
-    this.editText = undefined
-  }
-  moveEntry (delta :number) {
-    this.journum.moveEntry(this.entry.key, delta)
-  }
-
-  deleteEntry () {
-    this.journum.deleteEntry(this.entry.key)
-  }
-}
-
-const evStyles = createStyles({
-  root: {
-    flexGrow: 1,
-  },
-  editor: {
-    flexGrow: 1,
-  },
-})
-
-interface EVProps extends WithStyles<typeof evStyles> {
-  store :EntryStore
-}
-
-function menuButton (icon :JSX.Element, onClick :() => void) :JSX.Element {
-  return <IconButton color="inherit" aria-label="Menu" onClick={onClick}>{icon}</IconButton>
-}
+import * as U from "./util"
 
 const menuIcon = <Icons.Adjust fontSize="inherit" />
 const doneIcon = <Icons.Done fontSize="inherit" />
@@ -72,33 +15,82 @@ const deleteIcon = <Icons.Delete fontSize="inherit" />
 const upIcon = <Icons.ArrowUpward fontSize="inherit" />
 const downIcon = <Icons.ArrowDownward fontSize="inherit" />
 
+abstract class ItemStore {
+  @observable editText :string|void = undefined
+  @observable showMenu = false
+
+  abstract getText () :string
+  abstract setText (text :string) :void
+  abstract moveItem (delta :number) :void
+  abstract deleteItem () :void
+
+  startEdit () {
+    this.editText = this.getText()
+  }
+  handleEdit (key :string) {
+    if (key === "Escape") this.cancelEdit()
+    else if (key === "Enter") this.commitEdit()
+  }
+  commitEdit () {
+    if (this.editText) {
+      this.setText(this.editText)
+    }
+    this.editText = undefined
+  }
+  cancelEdit () {
+    this.editText = undefined
+  }
+}
+
+const ivStyles = UI.createStyles({
+  root: {
+    flexGrow: 1,
+  },
+  editor: {
+    flexGrow: 1,
+  },
+})
+
+interface IVProps extends UI.WithStyles<typeof ivStyles> {
+  store :ItemStore
+}
+
 @observer
-class EntryViewX extends React.Component<EVProps> {
+class ItemViewX extends React.Component<IVProps> {
 
   render () {
     const {store, classes} = this.props
     const editing = store.editText !== undefined
     return (
-      <ListItem disableGutters>
-        {menuButton(menuIcon, () => store.showMenu = !store.showMenu)}
-        {store.showMenu && menuButton(upIcon, () => store.moveEntry(-1))}
-        {store.showMenu && menuButton(downIcon, () => store.moveEntry(1))}
-        {store.showMenu && menuButton(deleteIcon, () => store.deleteEntry())}
-        {store.showMenu && !editing &&
-         menuButton(editIcon, () => store.startEdit())}
+      <UI.ListItem disableGutters>
+        {U.menuButton(menuIcon, () => store.showMenu = !store.showMenu)}
+        {store.showMenu && U.menuButton(upIcon, () => store.moveItem(-1))}
+        {store.showMenu && U.menuButton(downIcon, () => store.moveItem(1))}
+        {store.showMenu && U.menuButton(deleteIcon, () => store.deleteItem())}
+        {store.showMenu && (editing ? U.menuButton(cancelIcon, () => store.cancelEdit()) :
+                            U.menuButton(editIcon, () => store.startEdit()))}
         {store.editText === undefined ?
-          <ListItemText primary={store.entry.text}
+          <UI.ListItemText primary={store.getText()}
                         onClick={ev => ev.shiftKey && store.startEdit()} /> :
-          <Input autoFocus value={store.editText} className={classes.editor}
+          <UI.Input autoFocus value={store.editText} className={classes.editor}
                  onChange={ev => store.editText = ev.currentTarget.value}
                  onKeyDown={ev => store.handleEdit(ev.key)} />}
-        {editing && menuButton(doneIcon, () => store.commitEdit())}
-        {editing && menuButton(cancelIcon, () => store.cancelEdit())}
-      </ListItem>
+        {editing && U.menuButton(doneIcon, () => store.commitEdit())}
+     </UI.ListItem>
     )
   }
 }
-const EntryView = withStyles(evStyles)(EntryViewX)
+const ItemView = UI.withStyles(ivStyles)(ItemViewX)
+
+class EntryStore extends ItemStore {
+
+  constructor (readonly journum :M.Journum, readonly entry :M.Entry) { super() }
+
+  getText () :string { return this.entry.text }
+  setText (text :string) { this.entry.text = text }
+  moveItem (delta :number) { this.journum.moveEntry(this.entry.key, delta) }
+  deleteItem () { this.journum.deleteEntry(this.entry.key) }
+}
 
 export class JournumStore {
   @observable currentDate :Date
@@ -123,7 +115,7 @@ export class JournumStore {
     return entries
   }
 
-  constructor (readonly db :DB, startDate :Date) {
+  constructor (readonly db :DB.DB, startDate :Date) {
     this.currentDate = startDate
     this._setDate(startDate)
   }
@@ -177,7 +169,7 @@ export class JournumStore {
   }
 }
 
-const jvStyles = createStyles({
+const jvStyles = UI.createStyles({
   root: {
     flexGrow: 1,
   },
@@ -189,7 +181,7 @@ const jvStyles = createStyles({
   },
 })
 
-interface JVProps extends WithStyles<typeof jvStyles> {
+interface JVProps extends UI.WithStyles<typeof jvStyles> {
   store :JournumStore
 }
 
@@ -200,39 +192,33 @@ class JournumViewX extends React.Component<JVProps> {
     const {store, classes} = this.props, journum = store.current, entries = store.entries
     const haveJournum = journum !== undefined
     return (
-      <div className={classes.root}>
-        <AppBar position="static">
-          <Toolbar>
-            {menuButton(<Icons.ArrowLeft />, () => store.rollDate(-1))}
-            {menuButton(<Icons.Today />, () => store.goToday())}
-            <Typography variant="h6" color="inherit">
-              {formatDate(store.currentDate)}
-            </Typography>
-            {menuButton(<Icons.ArrowRight />, () => store.rollDate(+1))}
-            {store.pickingDate ?
-            <TextField autoFocus color="inherit" type="date" value={store.pickingDate}
-              onChange={ev => store.updatePick(ev.currentTarget.value)}
-              onBlur={ev => store.commitPick()} /> :
-            menuButton(<Icons.CalendarToday />, () => store.startPick())}
-            <Typography className={classes.grow} variant="h6" color="inherit"></Typography>
-            <IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
-              <Icons.CloudOff /></IconButton>
-          </Toolbar>
-        </AppBar>
-        <List>
-          {journum === undefined ? <ListItem><ListItemText primary="Loading..." /></ListItem> :
-           entries.length === 0 ? <ListItem><ListItemText primary="No entries..." /></ListItem> :
-           entries.map((es, ii) => <EntryView key={ii} store={es} />)}
-          <ListItem>
-            <Input type="text" className={classes.grow} placeholder="Add entry..."
-                   value={store.newEntry}
-                   onChange={ev => store.newEntry = ev.currentTarget.value}
-                   onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
-            <IconButton color="inherit" aria-label="Menu" disabled={!haveJournum}
-              onClick={() => this.addNewEntry()}><Icons.Add /></IconButton>
-          </ListItem>
-        </List>
-      </div>
+      <UI.List>
+        <UI.ListItem disableGutters>
+          {U.menuButton(<Icons.Today />, () => store.goToday())}
+          {U.menuButton(<Icons.ArrowLeft />, () => store.rollDate(-1))}
+          <UI.Typography variant="h6" color="inherit">
+            {U.formatDate(store.currentDate)}
+          </UI.Typography>
+          {U.menuButton(<Icons.ArrowRight />, () => store.rollDate(+1))}
+          {store.pickingDate ?
+          <UI.TextField autoFocus color="inherit" type="date" value={store.pickingDate}
+            onChange={ev => store.updatePick(ev.currentTarget.value)}
+            onBlur={ev => store.commitPick()} /> :
+          U.menuButton(<Icons.CalendarToday />, () => store.startPick())}
+          <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
+        </UI.ListItem>
+        {journum === undefined ? <UI.ListItem><UI.ListItemText primary="Loading..." /></UI.ListItem> :
+         entries.length === 0 ? <UI.ListItem><UI.ListItemText primary="No entries..." /></UI.ListItem> :
+         entries.map((es, ii) => <ItemView key={ii} store={es} />)}
+        <UI.ListItem>
+          <UI.Input type="text" className={classes.grow} placeholder="Add entry..."
+                 value={store.newEntry}
+                 onChange={ev => store.newEntry = ev.currentTarget.value}
+                 onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
+          <UI.IconButton color="inherit" aria-label="Menu" disabled={!haveJournum}
+            onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
+        </UI.ListItem>
+      </UI.List>
     )
   }
 
@@ -243,4 +229,108 @@ class JournumViewX extends React.Component<JVProps> {
     store.newEntry = ""
   }
 }
-export const JournumView = withStyles(jvStyles)(JournumViewX)
+export const JournumView = UI.withStyles(jvStyles)(JournumViewX)
+
+abstract class CurrentItemsStore<I extends M.Item> {
+  readonly items :DB.Items<I>
+
+  @observable newItem :string = ""
+
+  @computed get itemStores () :ItemStore[] {
+    let stores :ItemStore[] = []
+    for (let item of this.items.items) {
+      stores.push(this.newStore(item))
+    }
+    return stores
+  }
+
+  constructor (readonly coll :DB.ItemCollection<I>) {
+    this.items = coll.items()
+  }
+
+  async addItem (text :string) {
+    try {
+      this.coll.create({text, completed: null})
+    } catch (error) {
+      console.warn(`Failed to create item (text: ${text})`)
+      console.warn(error)
+    }
+  }
+
+  // TODO: someone needs to call close!
+  close () {
+    this.items.close()
+  }
+
+  protected abstract newStore (item :I) :ItemStore
+}
+
+const civStyles = UI.createStyles({
+  root: {
+    flexGrow: 1,
+  },
+  grow: {
+    flexGrow: 1,
+  },
+  spacing: {
+    unit: 4,
+  },
+})
+
+interface CIVProps<I extends M.Item> extends UI.WithStyles<typeof civStyles> {
+  store :CurrentItemsStore<I>
+}
+
+@observer
+class CurrentItemsViewX<I extends M.Item> extends React.Component<CIVProps<I>> {
+
+  render () {
+    const {store, classes} = this.props, items = store.items, stores = store.itemStores
+    return <UI.List>
+      {items.pending ? <UI.ListItem><UI.ListItemText primary="Loading..." /></UI.ListItem> :
+       stores.map((es, ii) => <ItemView key={ii} store={es} />)}
+      <UI.ListItem>
+        <UI.Input type="text" className={classes.grow} placeholder="Add entry..."
+               value={store.newItem}
+               onChange={ev => store.newItem = ev.currentTarget.value}
+               onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
+        <UI.IconButton color="inherit" aria-label="Menu"
+          onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
+      </UI.ListItem>
+    </UI.List>
+  }
+
+  addNewEntry () {
+    const store = this.props.store
+    if (store.newItem.length === 0) return // TODO: ugh
+    store.addItem(store.newItem)
+    store.newItem = ""
+  }
+}
+export const CurrentItemsView = UI.withStyles(jvStyles)(CurrentItemsViewX)
+
+class BuildableStore extends ItemStore {
+
+  constructor (readonly build :M.Buildable) { super() }
+
+  getText () :string { return this.build.text }
+  setText (text :string) { this.build.text = text }
+  moveItem (delta :number) { /*TODO*/ }
+  deleteItem () {
+    this.build.ref.delete().catch(error => {
+      console.warn(`Failed to delete buildable: ${error}`)
+      // TODO: feedback in UI
+    })
+  }
+}
+
+export class CurrentBuildablesStore extends CurrentItemsStore<M.Buildable> {
+
+  constructor (db :DB.DB) {
+    super(db.buildables)
+  }
+
+  protected newStore (item :M.Buildable) :ItemStore {
+    return new BuildableStore(item)
+  }
+}

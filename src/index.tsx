@@ -1,12 +1,12 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
-import { MuiThemeProvider, createMuiTheme } from '@material-ui/core';
-import purple from '@material-ui/core/colors/purple';
-import green from '@material-ui/core/colors/green';
-
 import * as firebase from "firebase"
 import * as A from "./app"
+import * as UI from "./ui"
+
+// import purple from '@material-ui/core/colors/purple';
+// import green from '@material-ui/core/colors/green';
 
 firebase.initializeApp({
   apiKey: "AIzaSyDy3Caew0ql16PM0x7laFXTcs6jih_-e8o",
@@ -14,11 +14,11 @@ firebase.initializeApp({
   projectId: "input-output-26476",
 })
 
-const theme = createMuiTheme({
-  palette: {
-    primary: purple,
-    secondary: green,
-  },
+const theme = UI.createMuiTheme({
+  // palette: {
+  //   primary: purple,
+  //   secondary: green,
+  // },
   spacing: {
     unit: 6,
   },
@@ -50,7 +50,7 @@ const theme = createMuiTheme({
 
 const appStore = new A.AppStore()
 ReactDOM.render(
-  <MuiThemeProvider theme={theme}>
+  <UI.MuiThemeProvider theme={theme}>
     <A.AppView store={appStore} />
-  </MuiThemeProvider>,
+  </UI.MuiThemeProvider>,
   document.getElementById("app-root"))

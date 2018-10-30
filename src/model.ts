@@ -32,23 +32,9 @@ function updateRef (ref :Ref, data :Data) {
 }
 
 abstract class Doc {
-  private _unsubscribe = () => {}
   private _syncing = true
 
-  constructor (readonly ref :Ref, data :Data) {
-    this._unsubscribe = this.ref.onSnapshot(doc => {
-      console.log(`Ref updated ${this.ref.id}:`)
-      console.dir(doc.data())
-      this._syncing = false
-      this.read(doc.data() || {})
-      this._syncing = true
-    })
-  }
-
-  // TODO: someone needs to call close!
-  close () {
-    this._unsubscribe()
-  }
+  constructor (readonly ref :Ref, data :Data) {}
 
   noteSync<T> (owner :T, prop :keyof T, refprop :string|number|symbol = prop) {
     observe(owner, prop, change => {
@@ -60,7 +46,13 @@ abstract class Doc {
     // TODO: may want to keep track of observers & allow removal/clearing?
   }
 
-  abstract read (data :Data) :void
+  read (data :Data) {
+    this._syncing = false
+    this.readProps(data)
+    this._syncing = true
+  }
+
+  protected abstract readProps (data :Data) :void
 }
 
 export class Tags {
@@ -93,7 +85,9 @@ export class Tags {
 export abstract class Item extends Doc {
   readonly created :Date
   readonly tags :Tags
-  @observable completed :Data|void = undefined
+  // we use null here (rather than undefined) because we need a null-valued property
+  // in the database to enable queries for property == null (incomplete items)
+  @observable completed :Data|null = null
   @observable link :URL|void = undefined
 
   // usually computed from other fields
@@ -107,27 +101,30 @@ export abstract class Item extends Doc {
     this.noteSync(this, "link")
   }
 
-  read (data :Data) {
+  protected readProps (data :Data) {
     this.completed = data.completed
     this.link = data.link
   }
 }
 
-export class Doable extends Item {
-  @observable text! :string
+export class Buildable extends Item {
+  @observable text :string = ""
+  @observable started :Date|void = undefined
 
   constructor (ref :Ref, data :Data) {
     super(ref, data)
     this.noteSync(this, "text")
+    this.noteSync(this, "started")
   }
 
-  read (data :Data) {
-    super.read(data)
+  protected readProps (data :Data) {
+    super.readProps(data)
     this.text = data.text
+    this.started = data.started
   }
 }
 
-export class Codeable extends Item {
+export class Doable extends Item {
   @observable text :string = ""
 
   constructor (ref :Ref, data :Data) {
@@ -135,8 +132,8 @@ export class Codeable extends Item {
     this.noteSync(this, "text")
   }
 
-  read (data :Data) {
-    super.read(data)
+  protected readProps (data :Data) {
+    super.readProps(data)
     this.text = data.text
   }
 }
@@ -153,8 +150,8 @@ export abstract class Consumable extends Item {
     this.noteSync(this, "recommender")
   }
 
-  read (data :Data) {
-    super.read(data)
+  protected readProps (data :Data) {
+    super.readProps(data)
     this.rating = data.rating
     this.recommender = data.recommender
   }
@@ -206,6 +203,8 @@ function assertDefined<T> (value :T|undefined) :T {
 // Output model
 
 export class Journum extends Doc {
+  private _unsubscribe = () => {}
+
   readonly date :Date
   @observable order :string[] = []
 
@@ -219,13 +218,24 @@ export class Journum extends Doc {
 
   constructor (ref :Ref, data :Data) {
     super(ref, data)
+    console.log(`Subscribing to doc: ${this.ref.id}`)
+    this._unsubscribe = this.ref.onSnapshot(doc => {
+      console.log(`Doc updated: ${this.ref.id}`)
+      this.read(doc.data() || {})
+    })
+
     const date = fromStamp(data.date)
     if (!date) throw new Error(`Invalid journum date: '${data.date}'`)
     this.date = date
     // `order` syncing is handled manually as we add/remove/move entries
   }
 
-  read (data :Data) {
+  // TODO: someone needs to call close!
+  close () {
+    this._unsubscribe()
+  }
+
+  protected readProps (data :Data) {
     // add and update entries
     const dataKeys = new Set(Object.keys(data.entries)), emap = this.entryMap
     for (let key of dataKeys) {
