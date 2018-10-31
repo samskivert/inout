@@ -6,37 +6,25 @@ import * as M from "./model"
 import * as S from "./stores"
 import * as U from "./util"
 
-const rvStyles = UI.createStyles({
-  editor: {
-    flexGrow: 1,
-  },
-})
-
-interface RVProps extends UI.WithStyles<typeof rvStyles> {
-  store :S.RowStore
-}
-
 @observer
-class RowViewRaw extends React.Component<RVProps> {
+class EntryView extends React.Component<{store :S.EntryStore}> {
 
   render () {
-    const {store, classes} = this.props
+    const store = this.props.store
     const editing = store.editText !== undefined
     const buttons :JSX.Element[] = [
       U.menuButton("menu", Icons.menu, () => store.showMenu = !store.showMenu)
     ]
     if (store.showMenu) {
       this.addMenuButtons(buttons)
-      buttons.push(editing ? U.menuButton("cancel", Icons.cancel, () => store.cancelEdit()) :
-                   U.menuButton("edit", Icons.edit, () => store.startEdit()))
     }
     return (
       <UI.ListItem disableGutters>
         {buttons}
         {store.editText === undefined ?
-          <UI.ListItemText primary={store.getText()}
+          <UI.ListItemText primary={store.entry.text}
                         onClick={ev => ev.shiftKey && store.startEdit()} /> :
-          <UI.Input autoFocus value={store.editText} className={classes.editor}
+          <UI.Input autoFocus value={store.editText} fullWidth
                  onChange={ev => store.editText = ev.currentTarget.value}
                  onKeyDown={ev => store.handleEdit(ev.key)} />}
         {editing && U.menuButton("done", Icons.done, () => store.commitEdit())}
@@ -51,7 +39,6 @@ class RowViewRaw extends React.Component<RVProps> {
     buttons.push(U.menuButton("delete", Icons.trash, () => store.deleteItem()))
   }
 }
-const RowView = UI.withStyles(rvStyles)(RowViewRaw)
 
 const jvStyles = UI.createStyles({
   grow: {
@@ -91,7 +78,7 @@ class JournumViewRaw extends React.Component<JVProps> {
         </UI.ListItem>
         {journum === undefined ? <UI.ListItem><UI.ListItemText primary="Loading..." /></UI.ListItem> :
          entries.length === 0 ? <UI.ListItem><UI.ListItemText primary="No entries..." /></UI.ListItem> :
-         entries.map((es, ii) => <RowView key={ii} store={es} />)}
+         entries.map((es, ii) => <EntryView key={ii} store={es} />)}
         <UI.ListItem>
           <UI.Input type="text" className={classes.grow} placeholder="Add entry..."
                  value={store.newEntry}
@@ -144,7 +131,7 @@ class ToXViewRaw<I extends M.Item> extends React.Component<TXVProps<I>> {
             {part.title}
           </UI.Typography>
         </UI.ListItem>
-        {part.stores.map(es => this.makeRowView(es))}
+        {part.stores.map(es => this.makeItemView(es))}
         {part === parts[parts.length-1] ?
          <UI.ListItem>
            <UI.Input type="text" className={classes.grow} placeholder={`Add ${part.title}...`}
@@ -165,26 +152,113 @@ class ToXViewRaw<I extends M.Item> extends React.Component<TXVProps<I>> {
     store.newItem = ""
   }
 
-  makeRowView (store :S.RowStore) :JSX.Element {
-    return <RowView key={store.key} store={store} />
+  makeItemView (store :S.ItemStore) :JSX.Element {
+    return <ItemView key={store.key} store={store} />
   }
 }
 
-// const ToXView = UI.withStyles(jvStyles)(ToXViewRaw)
+@observer
+class ItemView extends React.Component<{store :S.ItemStore}> {
 
-class BuildRowViewRaw extends RowViewRaw {
-  protected addMenuButtons (buttons :JSX.Element[]) {
-    super.addMenuButtons(buttons)
+  render () {
+    const store = this.props.store
+    return (
+      <UI.ListItem disableGutters>
+        {this.makeCheckButton(store)}
+        <UI.ListItemText primary={store.item.text} />
+        {this.createEditDialog()}
+        {U.menuButton("edit", Icons.edit, () => store.startEdit())}
+     </UI.ListItem>
+    )
+  }
+
+  protected makeCheckButton (store :S.ItemStore) :JSX.Element {
+    return U.menuButton("done", Icons.done, () => store.completeItem())
+  }
+
+  protected createEditDialog () :JSX.Element {
+    return <ItemEditDialog store={this.props.store as S.ItemStore} />
+  }
+}
+
+@observer
+class ItemEditDialog extends React.Component<{store :S.ItemStore}> {
+
+  render () {
+    const store = this.props.store
+    const ditems :JSX.Element[] = []
+    this.addDialogItems(ditems)
+    // completed always goes last...
+    ditems.push(<UI.Grid key="completed" item xs>
+      <UI.TextField label="Completed" type="date" InputLabelProps={{shrink: true}}
+                    value={store.editCompleted || ""}
+                    onChange={ev => store.editCompleted = ev.currentTarget.value || null} />
+    </UI.Grid>)
+    return (
+      <UI.Dialog key="edit-dialog" aria-labelledby="edit-dialog-title" fullWidth
+                 open={store.editing} onClose={ev => store.cancelEdit()}>
+        <UI.DialogTitle id="edit-dialog-title">Edit</UI.DialogTitle>
+        <UI.DialogContent>
+          <UI.Grid container direction="column" spacing={8}>
+            {ditems}
+          </UI.Grid>
+        </UI.DialogContent>
+        <UI.DialogActions>
+          <UI.Button onClick={ev => store.cancelEdit()} color="primary">Cancel</UI.Button>
+          <UI.Button onClick={ev => store.commitEdit()} color="primary">Update</UI.Button>
+        </UI.DialogActions>
+      </UI.Dialog>
+    )
+  }
+
+  protected addDialogItems (items :JSX.Element[]) {}
+}
+
+class ProtractedView extends ItemView {
+
+  protected makeCheckButton (store :S.ItemStore) :JSX.Element {
+    const pstore = store as S.ProtractedStore
+    if (pstore.item.started) return super.makeCheckButton(store) // complete item button
+    else return U.menuButton("start", Icons.start, () => pstore.startItem())
+  }
+}
+
+class ProtractedEditDialog extends ItemEditDialog {
+
+  protected addDialogItems (items :JSX.Element[]) {
+    super.addDialogItems(items)
+    const store = this.props.store as S.ProtractedStore
+    items.push(<UI.Grid key="started" item xs>
+      <UI.TextField label="Started" type="date" InputLabelProps={{shrink: true}}
+                    value={store.editStarted || ""}
+                    onChange={ev => store.editStarted = ev.currentTarget.value || undefined} />
+    </UI.Grid>)
+  }
+}
+
+class BuildEditDialog extends ProtractedEditDialog {
+
+  protected addDialogItems (items :JSX.Element[]) {
     const store = this.props.store as S.BuildStore
-    buttons.push(U.menuButton("start", Icons.start, () => store.item.started = new Date()))
+    items.push(<UI.Grid key="text" item xs>
+      <UI.TextField label="Text" fullWidth value={store.editText || ""}
+                    onChange={ev => store.editText = ev.currentTarget.value} />
+    </UI.Grid>)
+    super.addDialogItems(items)
   }
 }
-const BuildRowView = UI.withStyles(rvStyles)(BuildRowViewRaw)
+
+class BuildView extends ProtractedView {
+
+  protected createEditDialog () {
+    return <BuildEditDialog store={this.props.store} />
+  }
+}
 
 export class ToBuildViewRaw extends ToXViewRaw<M.Build> {
 
-  makeRowView (store :S.RowStore) :JSX.Element {
-    return <BuildRowView key={store.key} store={store} />
+  makeItemView (store :S.ItemStore) :JSX.Element {
+    return <BuildView key={store.key} store={store} />
   }
 }
 

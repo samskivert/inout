@@ -2,46 +2,23 @@ import { computed, observable } from "mobx"
 import * as firebase from "firebase"
 import * as DB from "./db"
 import * as M from "./model"
-
-//
-// A view model for a "row" displayed in a list (journal entry or to-x item)
-
-export abstract class RowStore {
-  @observable editText :string|void = undefined
-  @observable showMenu = false
-
-  abstract get key () :string
-  abstract getText () :string
-  abstract setText (text :string) :void
-  abstract moveItem (delta :number) :void
-  abstract deleteItem () :void
-
-  startEdit () {
-    this.editText = this.getText()
-  }
-  handleEdit (key :string) {
-    if (key === "Escape") this.cancelEdit()
-    else if (key === "Enter") this.commitEdit()
-  }
-  commitEdit () {
-    if (this.editText) {
-      this.setText(this.editText)
-    }
-    this.editText = undefined
-  }
-  cancelEdit () {
-    this.editText = undefined
-  }
-}
+import * as U from "./util"
 
 //
 // View models for to-x items
 
-export abstract class ItemStore extends RowStore {
-
-  abstract get item () :M.Item
+export abstract class ItemStore {
+  @observable editing = false
+  @observable editCompleted :string|null = null
 
   get key () :string { return this.item.ref.id }
+
+  abstract get item () :M.Item
+  abstract getText () :string
+
+  completeItem () {
+    this.item.completed = U.toStamp(new Date())
+  }
 
   deleteItem () {
     this.item.ref.delete().catch(error => {
@@ -49,15 +26,54 @@ export abstract class ItemStore extends RowStore {
       // TODO: feedback in UI
     })
   }
+
+  startEdit () {
+    this.editing = true
+    this.editCompleted = this.item.completed
+  }
+  commitEdit () {
+    this.editing = false
+    this.item.completed = this.editCompleted
+  }
+  cancelEdit () {
+    this.editing = false
+  }
 }
 
-export class BuildStore extends ItemStore {
+export abstract class ProtractedStore extends ItemStore {
+  @observable editStarted :string|void = undefined
+
+  abstract get item () :M.Protracted
+
+  startItem () {
+    this.item.started = U.toStamp(new Date())
+  }
+
+  startEdit () {
+    this.editStarted = this.item.started
+    super.startEdit()
+  }
+  commitEdit () {
+    this.item.started = this.editStarted
+    super.commitEdit()
+  }
+}
+
+export class BuildStore extends ProtractedStore {
+  @observable editText = ""
 
   constructor (readonly item :M.Build) { super() }
 
   getText () :string { return this.item.text }
-  setText (text :string) { this.item.text = text }
-  moveItem (delta :number) { /*TODO*/ }
+
+  startEdit () {
+    this.editText = this.item.text
+    super.startEdit()
+  }
+  commitEdit () {
+    this.item.text = this.editText
+    super.commitEdit()
+  }
 }
 
 //
@@ -133,15 +149,33 @@ export class ToBuildStore extends ToLongXStore<M.Build> {
 //
 // View model for journal lists and entries there-in
 
-class EntryStore extends RowStore {
+export class EntryStore {
+  @observable editText :string|void = undefined
+  @observable showMenu = false
 
-  constructor (readonly journum :M.Journum, readonly entry :M.Entry) { super() }
+  constructor (readonly journum :M.Journum, readonly entry :M.Entry) {}
 
   get key () :string { return this.entry.key }
-  getText () :string { return this.entry.text }
-  setText (text :string) { this.entry.text = text }
+
   moveItem (delta :number) { this.journum.moveEntry(this.entry.key, delta) }
   deleteItem () { this.journum.deleteEntry(this.entry.key) }
+
+  startEdit () {
+    this.editText = this.entry.text
+  }
+  handleEdit (key :string) {
+    if (key === "Escape") this.cancelEdit()
+    else if (key === "Enter") this.commitEdit()
+  }
+  commitEdit () {
+    if (this.editText) {
+      this.entry.text = this.editText
+    }
+    this.editText = undefined
+  }
+  cancelEdit () {
+    this.editText = undefined
+  }
 }
 
 export class JournumStore {
@@ -180,7 +214,7 @@ export class JournumStore {
   }
 
   setDate (date :Date) {
-    if (M.toStamp(date) !== M.toStamp(this.currentDate)) {
+    if (U.toStamp(date) !== U.toStamp(this.currentDate)) {
       this.currentDate = date
       this._setDate(date)
     }
@@ -207,12 +241,12 @@ export class JournumStore {
   @observable pickingDate :string|void = undefined
 
   startPick () {
-    this.pickingDate = M.toStamp(this.currentDate)
+    this.pickingDate = U.toStamp(this.currentDate)
   }
   updatePick (stamp :string|void) {
     if (stamp) {
       this.pickingDate = stamp
-      const date = M.fromStamp(stamp)
+      const date = U.fromStamp(stamp)
       date && this.setDate(date)
     }
   }

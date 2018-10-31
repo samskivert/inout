@@ -1,29 +1,12 @@
 import * as firebase from "firebase"
 import { observable, observe, computed, toJS } from "mobx"
+import { Stamp, fromStamp } from "./util"
 
 export type ID = string
 export type URL = string
 
 type Ref = firebase.firestore.DocumentReference
 type Data = firebase.firestore.DocumentData
-
-const pad = (value :number) => (value < 10) ? `0${value}` : `${value}`
-
-export function toStamp (date :Date) :string {
-  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`
-}
-
-const stampRE = /^([0-9]+)-([0-9]+)-([0-9]+)$/
-
-export function fromStamp (stamp :string) :Date|void {
-  let comps = stampRE.exec(stamp)
-  if (comps && comps.length === 4) {
-    let year = parseInt(comps[1])
-    let month = parseInt(comps[2])-1
-    let day = parseInt(comps[3])
-    return new Date(year, month, day)
-  }
-}
 
 function updateRef (ref :Ref, data :Data) {
   ref.update(data).
@@ -40,7 +23,9 @@ abstract class Doc {
     observe(owner, prop, change => {
       if (this._syncing) {
         console.log(`Syncing ${prop} = '${change.newValue}' (to ${String(refprop)})`)
-        updateRef(this.ref, {[refprop]: change.newValue})
+        const newValue = change.newValue === undefined ?
+          firebase.firestore.FieldValue.delete() : change.newValue
+        updateRef(this.ref, {[refprop]: newValue})
       }
     })
     // TODO: may want to keep track of observers & allow removal/clearing?
@@ -83,11 +68,11 @@ export class Tags {
 // Input model
 
 export abstract class Item extends Doc {
-  readonly created :Date
+  readonly created :Stamp
   readonly tags :Tags
   // we use null here (rather than undefined) because we need a null-valued property
   // in the database to enable queries for property == null (incomplete items)
-  @observable completed :Data|null = null
+  @observable completed :Stamp|null = null
   @observable link :URL|void = undefined
 
   // usually computed from other fields
@@ -108,7 +93,7 @@ export abstract class Item extends Doc {
 }
 
 export abstract class Protracted extends Item {
-  @observable started :Date|void = undefined
+  @observable started :Stamp|void = undefined
 
   constructor (ref :Ref, data :Data) {
     super(ref, data)
@@ -176,13 +161,13 @@ export abstract class Consume extends Item {
 //   type :ReadType
 //   title :string
 //   author :string
-//   started :Date|void
+//   started :Stamp|void
 //   outcome :Outcome|void
 // }
 
 // export interface Play extends Consumable {
 //   title :string
-//   started :Date|void
+//   started :Stamp|void
 //   outcome :Outcome|void
 // }
 

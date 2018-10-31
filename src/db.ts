@@ -1,6 +1,7 @@
 import { observable, transaction } from "mobx"
 import * as firebase from "firebase"
 import * as M from "./model"
+import * as U from "./util"
 
 type Ref = firebase.firestore.DocumentReference
 type Data = firebase.firestore.DocumentData
@@ -77,7 +78,7 @@ export class DB {
 
   async journal (date :Date) :Promise<M.Journum> {
     console.log(`Loading journal ${date}`)
-    let dstamp = M.toStamp(date)
+    let dstamp = U.toStamp(date)
     let ref = this.userCollection("journal").doc(dstamp)
     try {
       let doc = await ref.get()
