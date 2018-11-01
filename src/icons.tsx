@@ -4,6 +4,8 @@ import Adjust from '@material-ui/icons/Adjust'
 import ArrowDownward from '@material-ui/icons/ArrowDownward'
 import ArrowUpward from '@material-ui/icons/ArrowUpward'
 import Cancel from '@material-ui/icons/Cancel'
+import CheckBox from '@material-ui/icons/CheckBox'
+import CheckBoxOutlineBlank from '@material-ui/icons/CheckBoxOutlineBlank'
 import Delete from '@material-ui/icons/Delete'
 import Done from '@material-ui/icons/Done'
 import Edit from '@material-ui/icons/Edit'
@@ -16,6 +18,7 @@ export { default as Build } from '@material-ui/icons/Build'
 export { default as CalendarToday } from '@material-ui/icons/CalendarToday'
 export { default as CloudOff } from '@material-ui/icons/CloudOff'
 export { default as Today } from '@material-ui/icons/Today'
+export { default as Book } from '@material-ui/icons/ChromeReaderMode'
 
 export const cancel = <Cancel fontSize="inherit" />
 export const done = <Done fontSize="inherit" />
@@ -25,3 +28,5 @@ export const menu = <Adjust fontSize="inherit" />
 export const start = <PlayArrow fontSize="inherit" />
 export const trash = <Delete fontSize="inherit" />
 export const up = <ArrowUpward fontSize="inherit" />
+export const checkedBox = <CheckBox fontSize="inherit" />
+export const uncheckedBox = <CheckBoxOutlineBlank fontSize="inherit" />

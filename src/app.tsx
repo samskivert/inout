@@ -89,6 +89,7 @@ export class AppViewRaw extends React.Component<AVProps> {
       <UI.Toolbar>
         {menuButton("journal", <Icons.CalendarToday />, () => store.mode = S.Tab.JOURNAL)}
         {menuButton("build", <Icons.Build />, () => store.mode = S.Tab.BUILD)}
+        {menuButton("read", <Icons.Book />, () => store.mode = S.Tab.READ)}
         <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
         <UI.IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
           <Icons.CloudOff /></UI.IconButton>
@@ -113,6 +114,7 @@ export class AppViewRaw extends React.Component<AVProps> {
     switch (mode) {
     case S.Tab.JOURNAL: return <V.JournumView store={stores.journal} />
     case   S.Tab.BUILD: return <V.ToBuildView store={stores.build} />
+    case    S.Tab.READ: return <V.ToReadView store={stores.read} />
     default:            return <div>TODO: handle {mode}</div>
     }
   }

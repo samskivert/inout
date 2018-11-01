@@ -40,54 +40,27 @@ abstract class Doc {
   protected abstract readProps (data :Data) :void
 }
 
-export class Tags {
-  constructor (readonly data :Data) {}
-
-  read (data :Data) {
-  }
-
-  contains (tag :string) :boolean {
-    return (this.data.tags || []).includes(tag)
-  }
-  add (tag :string) {
-    const tags = this.data.tags || []
-    if (!tags.includes(tag)) {
-      this.data.tags.push(tag)
-      // TODO: save? write back?
-    }
-  }
-  remove (tag :string) {
-    const tags = this.data.tags || []
-    let idx = tags.indexOf(tag)
-    if (idx >= 0) {
-      this.data.tags = tags.splice(idx, 1)
-    }
-  }
-}
-
 // Input model
 
 export abstract class Item extends Doc {
-  readonly created :Stamp
-  readonly tags :Tags
+  readonly created :firebase.firestore.Timestamp
+  @observable tags :string[] = []
   // we use null here (rather than undefined) because we need a null-valued property
   // in the database to enable queries for property == null (incomplete items)
   @observable completed :Stamp|null = null
   @observable link :URL|void = undefined
 
-  // usually computed from other fields
-  abstract get text () :string
-
   constructor (ref :Ref, data :Data) {
     super(ref, data)
     this.created = data.created
-    this.tags = new Tags(data)
     this.noteSync(this, "completed")
+    this.noteSync(this, "tags")
     this.noteSync(this, "link")
   }
 
   protected readProps (data :Data) {
     this.completed = data.completed
+    this.tags = data.tags || []
     this.link = data.link
   }
 }
@@ -117,7 +90,6 @@ export class Build extends Protracted {
   protected readProps (data :Data) {
     super.readProps(data)
     this.text = data.text
-    this.started = data.started
   }
 }
 
@@ -154,16 +126,30 @@ export abstract class Consume extends Item {
   }
 }
 
-// export enum ReadType { POST, PAPER, BOOK }
-// export enum Outcome { ABANDONED, FINISHED }
+export type ReadType = "article" | "book" | "paper"
 
-// export interface Read extends Consumable {
-//   type :ReadType
-//   title :string
-//   author :string
-//   started :Stamp|void
-//   outcome :Outcome|void
-// }
+export class Read extends Protracted {
+  @observable title = ""
+  @observable author = ""
+  @observable type = "book"
+  @observable abandoned = false
+
+  constructor (ref :Ref, data :Data) {
+    super(ref, data)
+    this.noteSync(this, "title")
+    this.noteSync(this, "author")
+    this.noteSync(this, "type")
+    this.noteSync(this, "abandoned")
+  }
+
+  protected readProps (data :Data) {
+    super.readProps(data)
+    this.title = data.title
+    this.author = data.author
+    this.type = data.type
+    this.abandoned = data.abandoned
+  }
+}
 
 // export interface Play extends Consumable {
 //   title :string
@@ -299,12 +285,12 @@ export class Journum extends Doc {
 
 export class Entry {
   readonly item :ID|void
-  readonly tags :Tags
+  readonly tags :string[]
   @observable text :string = ""
 
   constructor (owner :Journum, readonly key :string, data :Data) {
     this.item = data.item
-    this.tags = new Tags(data)
+    this.tags = data.tags || []
     this.read(data)
     owner.noteSync(this, "text", `entries.${key}.text`)
   }
