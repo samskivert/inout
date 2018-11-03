@@ -128,7 +128,8 @@ class ItemsViewRaw extends React.Component<TXVProps> {
     const parts = store.partitions
     const partViews = parts.map(part =>
       <UI.List key={part.title}>
-        <UI.ListItem>
+        <UI.ListItem disableGutters>
+          <UI.IconButton color="inherit">{this.titleIcon()}</UI.IconButton>
           <UI.Typography className={classes.grow} variant="h6" color="inherit">
             {part.title}
           </UI.Typography>
@@ -163,15 +164,19 @@ class ItemsViewRaw extends React.Component<TXVProps> {
     return partViews
   }
 
-  addNewEntry () {
+  protected addNewEntry () {
     const store = this.props.store
     if (store.newItem.length === 0) return // TODO: ugh
     store.addItem(store.newItem)
     store.newItem = ""
   }
 
-  makeItemView (store :S.ItemStore) :JSX.Element {
+  protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <ItemView key={store.key} store={store} />
+  }
+
+  protected titleIcon () :JSX.Element {
+    return Icons.menu
   }
 }
 
@@ -439,9 +444,10 @@ class BuildView extends ProtractedView {
 }
 
 export class ToBuildViewRaw extends ItemsViewRaw {
-  makeItemView (store :S.ItemStore) :JSX.Element {
+  protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <BuildView key={store.key} store={store} />
   }
+  protected titleIcon () :JSX.Element { return Icons.build }
 }
 export const ToBuildView = UI.withStyles(jvStyles)(ToBuildViewRaw)
 
@@ -492,9 +498,10 @@ class ReadView extends ProtractedView {
 }
 
 export class ToReadViewRaw extends ItemsViewRaw {
-  makeItemView (store :S.ItemStore) :JSX.Element {
+  protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <ReadView key={store.key} store={store} />
   }
+  protected titleIcon () :JSX.Element { return Icons.book }
 }
 export const ToReadView = UI.withStyles(jvStyles)(ToReadViewRaw)
 
@@ -543,9 +550,10 @@ class WatchView extends ItemView {
 }
 
 export class ToWatchViewRaw extends ItemsViewRaw {
-  makeItemView (store :S.ItemStore) :JSX.Element {
+  protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <WatchView key={store.key} store={store} />
   }
+  protected titleIcon () :JSX.Element { return Icons.video }
 }
 export const ToWatchView = UI.withStyles(jvStyles)(ToWatchViewRaw)
 
@@ -591,9 +599,10 @@ class HearView extends ItemView {
 }
 
 export class ToHearViewRaw extends ItemsViewRaw {
-  makeItemView (store :S.ItemStore) :JSX.Element {
+  protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <HearView key={store.key} store={store} />
   }
+  protected titleIcon () :JSX.Element { return Icons.music }
 }
 export const ToHearView = UI.withStyles(jvStyles)(ToHearViewRaw)
 
@@ -649,9 +658,10 @@ class PlayView extends ProtractedView {
 }
 
 export class ToPlayViewRaw extends ItemsViewRaw {
-  makeItemView (store :S.ItemStore) :JSX.Element {
+  protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <PlayView key={store.key} store={store} />
   }
+  protected titleIcon () :JSX.Element { return Icons.play }
 }
 export const ToPlayView = UI.withStyles(jvStyles)(ToPlayViewRaw)
 
@@ -693,9 +703,10 @@ class DineView extends ItemView {
 }
 
 export class ToDineViewRaw extends ItemsViewRaw {
-  makeItemView (store :S.ItemStore) :JSX.Element {
+  protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <DineView key={store.key} store={store} />
   }
+  protected titleIcon () :JSX.Element { return Icons.food }
 }
 export const ToDineView = UI.withStyles(jvStyles)(ToDineViewRaw)
 

@@ -89,8 +89,8 @@ export class AppViewRaw extends React.Component<AVProps> {
     const toolbar = (user && stores) ? (
       <UI.Toolbar>
         {menuButton("journal", <Icons.CalendarToday />, () => store.mode = S.Tab.JOURNAL)}
-        {menuButton("build", <Icons.Build />, () => store.mode = S.Tab.BUILD)}
-        {menuButton("read", <Icons.Book />, () => store.mode = S.Tab.READ)}
+        {menuButton("build", Icons.build, () => store.mode = S.Tab.BUILD)}
+        {menuButton("read", Icons.book, () => store.mode = S.Tab.READ)}
         {menuButton("watch", Icons.video, () => store.mode = S.Tab.WATCH)}
         {menuButton("hear", Icons.music, () => store.mode = S.Tab.HEAR)}
         {menuButton("play", Icons.play, () => store.mode = S.Tab.PLAY)}
