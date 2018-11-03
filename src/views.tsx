@@ -698,18 +698,21 @@ class ItemsViewRaw extends React.Component<IVProps> {
         <UI.ListItem><UI.ListItemText primary="Loading..." /></UI.ListItem>
       </UI.List>
     )
+    function listTitle (title :string) {
+      return <UI.ListItem disableGutters>
+        <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
+        <UI.Typography className={classes.grow} variant="h6" color="inherit">{title}</UI.Typography>
+      </UI.ListItem>
+    }
+
     const parts = store.partitions
     const entries :JSX.Element[] = []
     for (let part of parts) {
-      entries.push(<UI.ListItem disableGutters>
-                     <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
-                     <UI.Typography className={classes.grow} variant="h6" color="inherit">
-                       {part.title}
-                     </UI.Typography>
-                   </UI.ListItem>)
+      entries.push(listTitle(part.title))
       for (let store of part.stores) entries.push(ui.itemView(store))
     }
-
+    entries.push(listTitle(`Recently ${ui.doneTitle}`))
+    for (let es of store.recentStores) entries.push(ui.itemView(es))
     return <div>
       <UI.List className={classes.content}>{entries}</UI.List>
       <FooterBar>

@@ -182,37 +182,18 @@ type Partition = {
 
 export abstract class ToXStore {
   readonly items :DB.Items
+  readonly recentItems :DB.Items
   // TODO: revamp to be based on a backing map from id?
   @computed get itemStores () :ItemStore[] { return storesFor(this.items) }
+  @computed get recentStores () :ItemStore[] { return storesFor(this.recentItems) }
   abstract get title () :string
   get partitions () :Partition[] { return [{title: this.title, stores: this.itemStores}] }
-
-  @observable doneYear :number|void = undefined
-  @observable doneItems :DB.Items|void = undefined
-  @computed get doneItemStores () :ItemStore[]|void {
-    return this.doneItems ? storesFor(this.doneItems) : undefined
-  }
 
   @observable newItem :string = ""
 
   constructor (readonly coll :DB.ItemCollection) {
     this.items = coll.items()
-    this.setDoneYear(new Date().getFullYear())
-  }
-
-  async setDoneYear (year :number) {
-    if (year !== this.doneYear) {
-      this.doneYear = year
-      if (this.doneItems) {
-        this.doneItems.close()
-        this.doneItems = undefined
-      }
-      this.doneItems = await this.coll.items(year)
-    }
-  }
-
-  async rollDoneYear (delta :number) {
-    if (this.doneYear) this.setDoneYear(this.doneYear + delta)
+    this.recentItems = coll.recentCompleted()
   }
 
   async addItem (text :string) {
@@ -232,7 +213,7 @@ export abstract class ToXStore {
   // TODO: someone needs to call close!
   close () {
     this.items.close()
-    this.doneItems && this.doneItems.close()
+    this.recentItems.close()
   }
 
   importLegacy (text :string) {

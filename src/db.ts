@@ -69,6 +69,11 @@ export class ItemCollection {
     return new Items(this.col, this.decoder, ByHistory)
   }
 
+  recentCompleted () :Items {
+    const query = this.col.orderBy("completed", "desc").limit(5)
+    return new Items(query, this.decoder, ByCompleted)
+  }
+
   async create (data :Data) :Promise<M.Item> {
     if (!data.created) data.created = firebase.firestore.FieldValue.serverTimestamp()
     if (!data.completed) data.completed = null
