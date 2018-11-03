@@ -339,7 +339,7 @@ export class JournumStore {
 // View models for bulk item editing
 
 export class BulkStore {
-  @observable type = M.ItemType.READ
+  @observable type = M.ItemType.BUILD
   @observable legacyData :string = ""
 
   constructor (readonly db :DB.DB, readonly stores :Stores) {}
@@ -353,6 +353,10 @@ export class BulkStore {
   }
   private _itemsType :M.ItemType|null = null
   private _items :DB.Items|null = null
+
+  close () {
+    this._items && this._items.close()
+  }
 }
 
 //
@@ -360,40 +364,38 @@ export class BulkStore {
 
 export class Stores {
   journal :JournumStore
-  build   :ToBuildStore
-  read    :ToReadStore
-  watch   :ToWatchStore
-  hear    :ToHearStore
-  play    :ToPlayStore
-  dine    :ToDineStore
+  items   :Map<M.ItemType, ToXStore> = new Map()
   bulk    :BulkStore
 
-  constructor (db :DB.DB) {
+  constructor (readonly db :DB.DB) {
     this.journal = new JournumStore(db, new Date())
-    this.build = new ToBuildStore(db)
-    this.read = new ToReadStore(db)
-    this.watch = new ToWatchStore(db)
-    this.hear = new ToHearStore(db)
-    this.play = new ToPlayStore(db)
-    this.dine = new ToDineStore(db)
     this.bulk = new BulkStore(db, this)
   }
 
   storeFor (type :M.ItemType) {
-    switch (type) {
-    case M.ItemType.BUILD: return this.build
-    case  M.ItemType.READ: return this.read
-    case M.ItemType.WATCH: return this.watch
-    case  M.ItemType.HEAR: return this.hear
-    case  M.ItemType.PLAY: return this.play
-    case  M.ItemType.DINE: return this.dine
-    default: throw new Error(`Unknown type: ${type}`)
-    }
+    const store = this.items.get(type)
+    if (store) return store
+    const nstore = this._createStore(type)
+    this.items.set(type, nstore)
+    return nstore
   }
 
   close () {
     this.journal.close()
-    this.build.close()
+    for (let store of this.items.values()) store.close()
+    this.bulk.close()
+  }
+
+  _createStore (type :M.ItemType) :ToXStore {
+    switch (type) {
+    case M.ItemType.BUILD: return  new ToBuildStore(this.db)
+    case  M.ItemType.READ: return  new ToReadStore(this.db)
+    case M.ItemType.WATCH: return  new ToWatchStore(this.db)
+    case  M.ItemType.HEAR: return  new ToHearStore(this.db)
+    case  M.ItemType.PLAY: return  new ToPlayStore(this.db)
+    case  M.ItemType.DINE: return  new ToDineStore(this.db)
+    default: throw new Error(`Unknown item type: ${type}`)
+    }
   }
 }
 
@@ -402,7 +404,7 @@ export enum Tab { JOURNAL, BUILD, READ, WATCH, HEAR, PLAY, DINE, DO, BULK }
 export class AppStore {
   readonly db = new DB.DB()
   @observable user :firebase.User|null = null
-  @observable mode = Tab.BULK // Tab.JOURNAL
+  @observable mode = Tab.JOURNAL
   // this can't be a @computed because of MobX tracking depends through a constructor into the
   // constructed object itself which is idiotic, but yay for magic
   stores :Stores|null = null
