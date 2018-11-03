@@ -102,7 +102,7 @@ class JournumViewRaw extends React.Component<JVProps> {
 }
 export const JournumView = UI.withStyles(jvStyles)(JournumViewRaw)
 
-const txvStyles = UI.createStyles({
+const ivStyles = (theme :UI.Theme) => UI.createStyles({
   grow: {
     flexGrow: 1,
   },
@@ -111,12 +111,14 @@ const txvStyles = UI.createStyles({
   },
 })
 
-interface TXVProps extends UI.WithStyles<typeof txvStyles> {
+interface IVProps extends UI.WithStyles<typeof ivStyles> {
   store :S.ToXStore
 }
 
 @observer
-class ItemsViewRaw extends React.Component<TXVProps> {
+class ItemsViewRaw extends React.Component<IVProps> {
+
+  protected get addPlaceholder () :string { return "Text" }
 
   render () {
     const {store, classes} = this.props
@@ -137,7 +139,8 @@ class ItemsViewRaw extends React.Component<TXVProps> {
         {part.stores.map(es => this.makeItemView(es))}
         {part === parts[parts.length-1] ?
          <UI.ListItem>
-           <UI.Input type="text" className={classes.grow} placeholder={`Add ${part.title}...`}
+           <UI.Typography style={{marginRight: 8}} variant="h6" color="inherit">Add:</UI.Typography>
+           <UI.Input type="text" className={classes.grow} placeholder={this.addPlaceholder}
                      value={store.newItem}
                      onChange={ev => store.newItem = ev.currentTarget.value}
                      onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
@@ -201,12 +204,15 @@ class ItemView extends React.Component<{store :S.ItemStore}> {
   render () {
     const store = this.props.store, link = store.item.link.value
     // TODO: window.open is kinda lame, make the link a real link...
+    const typeIcon = this.typeIcon
+    const typeDiv = typeIcon && <UI.IconButton>{typeIcon}</UI.IconButton>
     return (
       <UI.ListItem disableGutters>
         {this.makeCheckButton(store)}
         <UI.ListItemText primary={this.primaryText} secondary={this.secondaryText || ""} />
         {this.tags().map(tag => <Tag key={tag} tag={tag} />)}
         {link ? U.menuButton("link", Icons.link, () => window.open(link)) : undefined}
+        {typeDiv}
         {U.menuButton("edit", Icons.edit, () => store.startEdit())}
         {this.createEditDialog()}
      </UI.ListItem>
@@ -225,6 +231,8 @@ class ItemView extends React.Component<{store :S.ItemStore}> {
       U.menuButton("check", Icons.checkedBox, () => store.uncompleteItem()) :
       U.menuButton("check", Icons.uncheckedBox, () => store.completeItem())
   }
+
+  protected get typeIcon () :JSX.Element|void { return undefined }
 
   protected addDialogItems (items :JSX.Element[]) {}
 
@@ -444,6 +452,7 @@ class BuildView extends ProtractedView {
 }
 
 export class ToBuildViewRaw extends ItemsViewRaw {
+  protected get addPlaceholder () :string { return "Thing" }
   protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <BuildView key={store.key} store={store} />
   }
@@ -475,10 +484,12 @@ class ReadView extends ProtractedView {
   protected get primaryText () :string { return this.item.title.value }
   protected get secondaryText () :string|void { return this.item.author.value }
 
-  protected tags () :string[] {
-    const tags = super.tags().slice(0)
-    tags.push(this.item.type.value)
-    return tags
+  protected get typeIcon () :JSX.Element|void {
+    switch (this.item.type.value) {
+    case "article": return Icons.article
+    case "book": return Icons.book
+    case "paper": return Icons.paper
+    }
   }
 
   protected addDialogItems (items :JSX.Element[]) {
@@ -498,6 +509,7 @@ class ReadView extends ProtractedView {
 }
 
 export class ToReadViewRaw extends ItemsViewRaw {
+  protected get addPlaceholder () :string { return "Title - Author" }
   protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <ReadView key={store.key} store={store} />
   }
@@ -535,6 +547,15 @@ class WatchView extends ItemView {
   protected get primaryText () :string { return this.item.title.value }
   protected get secondaryText () :string|void { return this.item.director.value }
 
+  protected get typeIcon () :JSX.Element|void {
+    switch (this.item.type.value) {
+    case "show": return Icons.tv
+    case "film": return Icons.movie
+    case "video": return Icons.video
+    case "other": return undefined
+    }
+  }
+
   protected addDialogItems (items :JSX.Element[]) {
     const item = this.item
     items.push(gridTextEditor("Title", item.title.editValue))
@@ -550,10 +571,11 @@ class WatchView extends ItemView {
 }
 
 export class ToWatchViewRaw extends ItemsViewRaw {
+  protected get addPlaceholder () :string { return "Title - Director" }
   protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <WatchView key={store.key} store={store} />
   }
-  protected titleIcon () :JSX.Element { return Icons.video }
+  protected titleIcon () :JSX.Element { return Icons.movie }
 }
 export const ToWatchView = UI.withStyles(jvStyles)(ToWatchViewRaw)
 
@@ -599,6 +621,7 @@ class HearView extends ItemView {
 }
 
 export class ToHearViewRaw extends ItemsViewRaw {
+  protected get addPlaceholder () :string { return "Title - Artist" }
   protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <HearView key={store.key} store={store} />
   }
@@ -658,6 +681,7 @@ class PlayView extends ProtractedView {
 }
 
 export class ToPlayViewRaw extends ItemsViewRaw {
+  protected get addPlaceholder () :string { return "Title" }
   protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <PlayView key={store.key} store={store} />
   }
@@ -703,6 +727,7 @@ class DineView extends ItemView {
 }
 
 export class ToDineViewRaw extends ItemsViewRaw {
+  protected get addPlaceholder () :string { return "Name" }
   protected makeItemView (store :S.ItemStore) :JSX.Element {
     return <DineView key={store.key} store={store} />
   }
