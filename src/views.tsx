@@ -626,10 +626,12 @@ const PlayTypes = [{value: "pc",     label: "PC"},
                    {value: "ps3",    label: "PS3"},
                    {value: "wii",    label: "Wii"},
                    {value: "table",  label: "Table"}]
+const PlatformToName = new Map(PlayTypes.map(({value, label}) => [value, label] as [any, any]))
 
 class PlayView extends ProtractedView {
   get item () :M.Play { return this.props.store.item as M.Play }
   protected get primaryText () :string { return this.item.title.value }
+  protected get secondaryText () :string { return PlatformToName.get(this.item.platform.value) || "" }
 
   protected addDialogItems (items :JSX.Element[]) {
     const item = this.item

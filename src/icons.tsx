@@ -16,6 +16,7 @@ import LiveTV from '@material-ui/icons/LiveTV'
 import MusicNote from '@material-ui/icons/MusicNote'
 import PlayArrow from '@material-ui/icons/PlayArrow'
 import VideogameAsset from '@material-ui/icons/VideogameAsset'
+import Videocam from '@material-ui/icons/Videocam'
 
 export { default as Add } from '@material-ui/icons/Add'
 export { default as ArrowLeft } from '@material-ui/icons/ArrowLeft'
@@ -42,3 +43,4 @@ export const trash = <Delete fontSize="inherit" />
 export const tv = <LiveTV fontSize="inherit" />
 export const uncheckedBox = <CheckBoxOutlineBlank fontSize="inherit" />
 export const up = <ArrowUpward fontSize="inherit" />
+export const video = <Videocam fontSize="inherit" />
