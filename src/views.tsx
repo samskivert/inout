@@ -1,12 +1,114 @@
 import * as React from "react";
 import { IObservableValue } from "mobx"
 import { observer } from "mobx-react"
-import * as UI from './ui';
+
 import * as Icons from './icons';
 import * as M from "./model"
 import * as S from "./stores"
 import * as U from "./util"
-import * as DB from "./db"
+import * as UI from './ui';
+
+// ----------------
+// Property editors
+
+function textEditor (label :string, prop :IObservableValue<string>) {
+  return <UI.TextField label={label} fullWidth value={prop.get()}
+                       onChange={ev => prop.set(ev.currentTarget.value)} />
+}
+function gridTextEditor (label :string, prop :IObservableValue<string>, cells :UI.GridSize = 12) {
+  return <UI.Grid key={label} item xs={cells}>{textEditor(label, prop)}</UI.Grid>
+}
+
+function optTextEditor (label :string, prop :IObservableValue<string|void>) {
+  const onValue = (value :string|void) => prop.set(value ? value : undefined)
+  return <UI.TextField label={label} fullWidth value={prop.get() || ""}
+                       onChange={ev => onValue(ev.currentTarget.value)} />
+}
+
+function gridOptTextEditor (label :string, prop :IObservableValue<string|void>,
+                            cells :UI.GridSize = 12) {
+  return <UI.Grid key={label} item xs={cells}>{optTextEditor(label, prop)}</UI.Grid>
+}
+
+function dateEditor (label :string, prop :IObservableValue<string|void>) :JSX.Element {
+  return <UI.TextField label={label} type="date" InputLabelProps={{shrink: true}}
+                       value={prop.get() || ""}
+                       onChange={ev => prop.set(ev.currentTarget.value || undefined)} />
+}
+
+function gridDateEditor (label :string, prop :IObservableValue<string|void>,
+                     cells :UI.GridSize = 6) :JSX.Element {
+  return <UI.Grid key={label} item xs={cells}>{dateEditor(label, prop)}</UI.Grid>
+}
+
+function completedEditor (prop :IObservableValue<string|null>) :JSX.Element {
+  return <UI.TextField label="Completed" type="date" InputLabelProps={{shrink: true}}
+                       value={prop.get() || ""}
+                       onChange={ev => prop.set(ev.currentTarget.value || null)} />
+}
+
+function gridCompletedEditor (prop :IObservableValue<string|null>,
+                              cells :UI.GridSize = 6) :JSX.Element {
+  return <UI.Grid key="completed" item xs={cells}>{completedEditor(prop)}</UI.Grid>
+}
+
+function enumEditor (label :string, options :{value :string, label :string}[],
+                     prop :IObservableValue<string>) {
+  const id = `enum-${label}`
+  return <UI.FormControl>
+    <UI.InputLabel htmlFor={id}>{label}</UI.InputLabel>
+    <UI.Select native inputProps={{name: 'type', id}} value={prop.get()}
+               onChange={ev => prop.set(ev.target.value)}>
+      {options.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
+    </UI.Select>
+  </UI.FormControl>
+}
+
+function gridEnumEditor (label :string, options :{value :string, label :string}[],
+                         prop :IObservableValue<string>, cells :UI.GridSize = 6) {
+  return <UI.Grid key={label} item xs={cells}>{enumEditor(label, options, prop)}</UI.Grid>
+}
+
+function boolEditor (label :string, prop :IObservableValue<boolean>, cells :UI.GridSize = 6) {
+  const check = <UI.Checkbox checked={prop.get()} onChange={ev => prop.set(ev.target.checked)} />
+  return <UI.Grid key={label} item xs={cells}>
+    <UI.FormControlLabel control={check} label={label} />
+  </UI.Grid>
+}
+
+const fbStyles = (theme :UI.Theme) => UI.createStyles({
+  bar: {
+    top: 'auto',
+    bottom: 0,
+  },
+})
+
+class FooterBarRaw extends React.Component<UI.WithStyles<typeof fbStyles>> {
+  render () {
+    const classes = this.props.classes
+    return <UI.AppBar position="fixed" color="secondary" className={classes.bar}>
+        <UI.Toolbar>
+          {this.props.children}
+        </UI.Toolbar>
+      </UI.AppBar>
+  }
+}
+const FooterBar = UI.withStyles(fbStyles)(FooterBarRaw)
+
+function itemTypeSelect (read :() => M.ItemType, update :(type :M.ItemType) => void) {
+  const menuItem = (type :M.ItemType) =>
+    <UI.MenuItem key={type} value={type}>{itemUI(type).doneTitle}</UI.MenuItem>
+  return <UI.FormControl>
+    <UI.Select inputProps={{name: 'type', id: "type"}} value={read()}
+               style={{color: "white"}}
+               onChange={ev => update(ev.target.value as M.ItemType)}>
+      {Object.keys(M.ItemType).map(key => M.ItemType[key]).map(menuItem)}
+    </UI.Select>
+  </UI.FormControl>
+}
+
+// -------------
+// Journal views
 
 @observer
 class EntryView extends React.Component<{store :S.EntryStore}> {
@@ -17,9 +119,7 @@ class EntryView extends React.Component<{store :S.EntryStore}> {
     const buttons :JSX.Element[] = [
       U.menuButton("menu", Icons.menu, () => store.showMenu = !store.showMenu)
     ]
-    if (store.showMenu) {
-      this.addMenuButtons(buttons)
-    }
+    if (store.showMenu) this.addMenuButtons(buttons)
     return (
       <UI.ListItem disableGutters>
         {buttons}
@@ -42,17 +142,26 @@ class EntryView extends React.Component<{store :S.EntryStore}> {
   }
 }
 
-const jvStyles = UI.createStyles({
+const jvStyles = (theme :UI.Theme) => UI.createStyles({
   grow: {
     flexGrow: 1,
   },
   spacing: {
     unit: 4,
   },
+  addText: {
+    flexGrow: 1,
+    color: "white",
+    borderBottom: "1px solid white"
+  },
 })
 
 interface JVProps extends UI.WithStyles<typeof jvStyles> {
   store :S.JournumStore
+}
+
+function textListItem (text :string) :JSX.Element {
+  return <UI.ListItem><UI.ListItemText primary={text} /></UI.ListItem>
 }
 
 @observer
@@ -61,10 +170,9 @@ class JournumViewRaw extends React.Component<JVProps> {
   render () {
     const {store, classes} = this.props, journum = store.current, entries = store.entries
     const haveJournum = journum !== undefined
-    return (
+    return <div>
       <UI.List>
         <UI.ListItem disableGutters>
-          <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
           {U.menuButton("today", <Icons.Today />, () => store.goToday())}
           {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollDate(-1))}
           <UI.Typography variant="h6" color="inherit">
@@ -78,19 +186,21 @@ class JournumViewRaw extends React.Component<JVProps> {
           U.menuButton("pick", <Icons.CalendarToday />, () => store.startPick())}
           <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
         </UI.ListItem>
-        {journum === undefined ? <UI.ListItem><UI.ListItemText primary="Loading..." /></UI.ListItem> :
-         entries.length === 0 ? <UI.ListItem><UI.ListItemText primary="No entries..." /></UI.ListItem> :
+        {journum === undefined ? textListItem("Loading...") :
+         entries.length === 0 ? textListItem("No entries...") :
          entries.map((es, ii) => <EntryView key={ii} store={es} />)}
-        <UI.ListItem>
-          <UI.Input type="text" className={classes.grow} placeholder="Add entry..."
-                 value={store.newEntry}
-                 onChange={ev => store.newEntry = ev.currentTarget.value}
-                 onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
-          <UI.IconButton color="inherit" aria-label="Menu" disabled={!haveJournum}
-            onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
-        </UI.ListItem>
       </UI.List>
-    )
+      <FooterBar>
+        <UI.Typography style={{marginLeft: 8, marginRight: 8}} variant="h6" color="inherit">
+          Add:</UI.Typography>
+        <UI.Input type="text" className={classes.addText} placeholder="Journal Entry"
+                  value={store.newEntry}
+                  onChange={ev => store.newEntry = ev.currentTarget.value}
+                  onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
+        <UI.IconButton color="inherit" aria-label="Menu" disabled={!haveJournum}
+          onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
+      </FooterBar>
+    </div>
   }
 
   addNewEntry () {
@@ -102,86 +212,8 @@ class JournumViewRaw extends React.Component<JVProps> {
 }
 export const JournumView = UI.withStyles(jvStyles)(JournumViewRaw)
 
-const ivStyles = (theme :UI.Theme) => UI.createStyles({
-  grow: {
-    flexGrow: 1,
-  },
-  spacing: {
-    unit: 4,
-  },
-})
-
-interface IVProps extends UI.WithStyles<typeof ivStyles> {
-  store :S.ToXStore
-}
-
-@observer
-class ItemsViewRaw extends React.Component<IVProps> {
-
-  protected get addPlaceholder () :string { return "Text" }
-
-  render () {
-    const {store, classes} = this.props
-    if (store.items.pending) return (
-      <UI.List>
-        <UI.ListItem><UI.ListItemText primary="Loading..." /></UI.ListItem>
-      </UI.List>
-    )
-    const parts = store.partitions
-    const partViews = parts.map(part =>
-      <UI.List key={part.title}>
-        <UI.ListItem disableGutters>
-          <UI.IconButton color="inherit">{this.titleIcon()}</UI.IconButton>
-          <UI.Typography className={classes.grow} variant="h6" color="inherit">
-            {part.title}
-          </UI.Typography>
-        </UI.ListItem>
-        {part.stores.map(es => this.makeItemView(es))}
-        {part === parts[parts.length-1] ?
-         <UI.ListItem>
-           <UI.Typography style={{marginRight: 8}} variant="h6" color="inherit">Add:</UI.Typography>
-           <UI.Input type="text" className={classes.grow} placeholder={this.addPlaceholder}
-                     value={store.newItem}
-                     onChange={ev => store.newItem = ev.currentTarget.value}
-                     onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
-           <UI.IconButton color="inherit" aria-label="Menu"
-             onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
-         </UI.ListItem> : undefined}
-      </UI.List>
-    )
-    const done = store.doneItemStores
-    // TODO: add a year picker?
-    if (done) {
-      partViews.push(
-        <UI.List key={store.doneTitle}>
-          <UI.ListItem>
-            <UI.Typography variant="h6" color="inherit">{store.doneTitle}</UI.Typography>
-            {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollDoneYear(-1))}
-            <UI.Typography variant="h6" color="inherit">{String(store.doneYear)}</UI.Typography>
-            {U.menuButton("next", <Icons.ArrowRight />, () => store.rollDoneYear(1))}
-          </UI.ListItem>
-          {done.map(es => this.makeItemView(es))}
-          {done.length == 0 ? <UI.ListItem><UI.Typography variant="subtitle1" />(empty)</UI.ListItem> : undefined}
-        </UI.List>)
-    }
-    return partViews
-  }
-
-  protected addNewEntry () {
-    const store = this.props.store
-    if (store.newItem.length === 0) return // TODO: ugh
-    store.addItem(store.newItem)
-    store.newItem = ""
-  }
-
-  protected makeItemView (store :S.ItemStore) :JSX.Element {
-    return <ItemView key={store.key} store={store} />
-  }
-
-  protected titleIcon () :JSX.Element {
-    return Icons.menu
-  }
-}
+// ---------
+// Item view
 
 const tagStyles = (theme :UI.Theme) => UI.createStyles({
   chip: {
@@ -242,68 +274,8 @@ class ItemView extends React.Component<{store :S.ItemStore}> {
   }
 }
 
-function textEditor (label :string, prop :IObservableValue<string>) {
-  return <UI.TextField label={label} fullWidth value={prop.get()}
-                       onChange={ev => prop.set(ev.currentTarget.value)} />
-}
-function gridTextEditor (label :string, prop :IObservableValue<string>, cells :UI.GridSize = 12) {
-  return <UI.Grid key={label} item xs={cells}>{textEditor(label, prop)}</UI.Grid>
-}
-
-function optTextEditor (label :string, prop :IObservableValue<string|void>) {
-  const onValue = (value :string|void) => prop.set(value ? value : undefined)
-  return <UI.TextField label={label} fullWidth value={prop.get() || ""}
-                       onChange={ev => onValue(ev.currentTarget.value)} />
-}
-
-function gridOptTextEditor (label :string, prop :IObservableValue<string|void>, cells :UI.GridSize = 12) {
-  return <UI.Grid key={label} item xs={cells}>{optTextEditor(label, prop)}</UI.Grid>
-}
-
-function dateEditor (label :string, prop :IObservableValue<string|void>) :JSX.Element {
-  return <UI.TextField label={label} type="date" InputLabelProps={{shrink: true}}
-                       value={prop.get() || ""}
-                       onChange={ev => prop.set(ev.currentTarget.value || undefined)} />
-}
-
-function gridDateEditor (label :string, prop :IObservableValue<string|void>,
-                     cells :UI.GridSize = 6) :JSX.Element {
-  return <UI.Grid key={label} item xs={cells}>{dateEditor(label, prop)}</UI.Grid>
-}
-
-function completedEditor (prop :IObservableValue<string|null>) :JSX.Element {
-  return <UI.TextField label="Completed" type="date" InputLabelProps={{shrink: true}}
-                       value={prop.get() || ""}
-                       onChange={ev => prop.set(ev.currentTarget.value || null)} />
-}
-
-function gridCompletedEditor (prop :IObservableValue<string|null>, cells :UI.GridSize = 6) :JSX.Element {
-  return <UI.Grid key="completed" item xs={cells}>{completedEditor(prop)}</UI.Grid>
-}
-
-function enumEditor (label :string, options :{value :string, label :string}[],
-                     prop :IObservableValue<string>) {
-  const id = `enum-${label}`
-  return <UI.FormControl>
-    <UI.InputLabel htmlFor={id}>{label}</UI.InputLabel>
-    <UI.Select native inputProps={{name: 'type', id}} value={prop.get()}
-               onChange={ev => prop.set(ev.target.value)}>
-      {options.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
-    </UI.Select>
-  </UI.FormControl>
-}
-
-function gridEnumEditor (label :string, options :{value :string, label :string}[],
-                         prop :IObservableValue<string>, cells :UI.GridSize = 6) {
-  return <UI.Grid key={label} item xs={cells}>{enumEditor(label, options, prop)}</UI.Grid>
-}
-
-function boolEditor (label :string, prop :IObservableValue<boolean>, cells :UI.GridSize = 6) {
-  const check = <UI.Checkbox checked={prop.get()} onChange={ev => prop.set(ev.target.checked)} />
-  return <UI.Grid key={label} item xs={cells}>
-    <UI.FormControlLabel control={check} label={label} />
-  </UI.Grid>
-}
+// ----------------
+// Item edit dialog
 
 const iedStyles = UI.createStyles({
   grow: {
@@ -360,76 +332,12 @@ const RatingTypes = [
   {value: "good", label: "Good"},
   {value: "great", label: "Great"}]
 
-// --------------------
-// Bulk viewing/editing
-
-@observer
-class BulkItemsView extends React.Component<{
-  items :DB.Items
-  formatter :(item :M.Item) => JSX.Element
-}> {
-  render () {
-    const {items, formatter} = this.props
-    return (
-      <UI.Table padding="none">
-        <UI.TableBody>
-        {items.items.map(formatter)}
-        </UI.TableBody>
-      </UI.Table>
-    )
-  }
-}
-
-@observer
-export class BulkView extends React.Component<{store :S.BulkStore}> {
-  render () {
-    const store = this.props.store
-    const itemStore = store.stores.storeFor(store.type)
-    return <div>
-      <UI.Table padding="dense">
-        <UI.TableBody><UI.TableRow>
-          <UI.TableCell>
-          <UI.FormControl>
-            <UI.InputLabel htmlFor={"type"}>Type</UI.InputLabel>
-            <UI.Select native inputProps={{name: 'type', id: "type"}} value={store.type}
-              onChange={ev => store.type = ev.target.value as M.ItemType}>
-              {Object.keys(M.ItemType).map(key => <option key={key} value={M.ItemType[key]}>{key}</option>)}
-            </UI.Select>
-          </UI.FormControl>
-          </UI.TableCell>
-          <UI.TableCell>
-          <UI.TextField label="Import" fullWidth value={store.legacyData}
-                        onChange={ev => store.legacyData = ev.currentTarget.value} />
-          </UI.TableCell>
-          <UI.TableCell>
-          <UI.Button onClick={ev => {
-            itemStore.importLegacy(store.legacyData)
-            store.legacyData = ""
-          }}>Submit</UI.Button>
-          </UI.TableCell>
-        </UI.TableRow></UI.TableBody>
-      </UI.Table>
-      <BulkItemsView items={store.items} formatter={bulkItemFormatter(store.type)} />
-    </div>
-  }
-}
-
-function tableCell (contents :JSX.Element, width :string = "") :JSX.Element {
-  const styles :any = {paddingLeft: 5, paddingRight: 5}
-  if (width) styles.width = width
-  return <UI.TableCell style={styles}>{contents}</UI.TableCell>
-}
-
-function bulkItemFormatter (type :M.ItemType) :(item :M.Item) => JSX.Element {
-  switch (type) {
-  case M.ItemType.BUILD: return bulkBuildEditor
-  case  M.ItemType.READ: return bulkReadEditor
-  case M.ItemType.WATCH: return bulkWatchEditor
-  case  M.ItemType.HEAR: return bulkHearEditor
-  case  M.ItemType.PLAY: return bulkPlayEditor
-  case  M.ItemType.DINE: return bulkDineEditor
-  default: throw new Error(`TODO: ${type}`)
-  }
+type ItemUI = {
+  addPlaceholder :string
+  itemView :(store :S.ItemStore) => JSX.Element
+  titleIcon :JSX.Element
+  doneTitle :string
+  bulkEditor :(item :M.Item) => JSX.Element
 }
 
 // ----
@@ -451,15 +359,6 @@ class BuildView extends ProtractedView {
   }
 }
 
-export class ToBuildViewRaw extends ItemsViewRaw {
-  protected get addPlaceholder () :string { return "Thing" }
-  protected makeItemView (store :S.ItemStore) :JSX.Element {
-    return <BuildView key={store.key} store={store} />
-  }
-  protected titleIcon () :JSX.Element { return Icons.build }
-}
-export const ToBuildView = UI.withStyles(jvStyles)(ToBuildViewRaw)
-
 function bulkBuildEditor (item :M.Item) :JSX.Element {
   const build = item as M.Build
   return (
@@ -470,6 +369,14 @@ function bulkBuildEditor (item :M.Item) :JSX.Element {
       {tableCell(completedEditor(build.completed.syncValue), "100px")}
     </UI.TableRow>
   )
+}
+
+const BuildUI :ItemUI = {
+  addPlaceholder: "Thing",
+  itemView: store => <BuildView key={store.key} store={store} />,
+  titleIcon: Icons.build,
+  doneTitle: "Built",
+  bulkEditor: bulkBuildEditor
 }
 
 // ----
@@ -508,15 +415,6 @@ class ReadView extends ProtractedView {
   }
 }
 
-export class ToReadViewRaw extends ItemsViewRaw {
-  protected get addPlaceholder () :string { return "Title - Author" }
-  protected makeItemView (store :S.ItemStore) :JSX.Element {
-    return <ReadView key={store.key} store={store} />
-  }
-  protected titleIcon () :JSX.Element { return Icons.book }
-}
-export const ToReadView = UI.withStyles(jvStyles)(ToReadViewRaw)
-
 function bulkReadEditor (item :M.Item) :JSX.Element {
   const read = item as M.Read
   return (
@@ -532,6 +430,14 @@ function bulkReadEditor (item :M.Item) :JSX.Element {
       {tableCell(completedEditor(read.completed.syncValue), "100px")}
     </UI.TableRow>
   )
+}
+
+const ReadUI :ItemUI = {
+  addPlaceholder: "Title - Author",
+  itemView: store => <ReadView key={store.key} store={store} />,
+  titleIcon: Icons.book,
+  doneTitle: "Read",
+  bulkEditor: bulkReadEditor
 }
 
 // ----
@@ -570,15 +476,6 @@ class WatchView extends ItemView {
   }
 }
 
-export class ToWatchViewRaw extends ItemsViewRaw {
-  protected get addPlaceholder () :string { return "Title - Director" }
-  protected makeItemView (store :S.ItemStore) :JSX.Element {
-    return <WatchView key={store.key} store={store} />
-  }
-  protected titleIcon () :JSX.Element { return Icons.movie }
-}
-export const ToWatchView = UI.withStyles(jvStyles)(ToWatchViewRaw)
-
 function bulkWatchEditor (item :M.Item) :JSX.Element {
   const watch = item as M.Watch
   return (
@@ -592,6 +489,14 @@ function bulkWatchEditor (item :M.Item) :JSX.Element {
       {tableCell(completedEditor(watch.completed.syncValue), "100px")}
     </UI.TableRow>
   )
+}
+
+const WatchUI :ItemUI = {
+  addPlaceholder: "Title - Director",
+  itemView: store => <WatchView key={store.key} store={store} />,
+  titleIcon: Icons.movie,
+  doneTitle: "Seen",
+  bulkEditor: bulkWatchEditor
 }
 
 // ----
@@ -620,15 +525,6 @@ class HearView extends ItemView {
   }
 }
 
-export class ToHearViewRaw extends ItemsViewRaw {
-  protected get addPlaceholder () :string { return "Title - Artist" }
-  protected makeItemView (store :S.ItemStore) :JSX.Element {
-    return <HearView key={store.key} store={store} />
-  }
-  protected titleIcon () :JSX.Element { return Icons.music }
-}
-export const ToHearView = UI.withStyles(jvStyles)(ToHearViewRaw)
-
 function bulkHearEditor (item :M.Item) :JSX.Element {
   const hear = item as M.Hear
   return (
@@ -642,6 +538,14 @@ function bulkHearEditor (item :M.Item) :JSX.Element {
       {tableCell(completedEditor(hear.completed.syncValue), "100px")}
     </UI.TableRow>
   )
+}
+
+const HearUI :ItemUI = {
+  addPlaceholder: "Title - Artist",
+  itemView: store => <HearView key={store.key} store={store} />,
+  titleIcon: Icons.music,
+  doneTitle: "Heard",
+  bulkEditor: bulkHearEditor
 }
 
 // ----
@@ -680,14 +584,13 @@ class PlayView extends ProtractedView {
   }
 }
 
-export class ToPlayViewRaw extends ItemsViewRaw {
-  protected get addPlaceholder () :string { return "Title" }
-  protected makeItemView (store :S.ItemStore) :JSX.Element {
-    return <PlayView key={store.key} store={store} />
-  }
-  protected titleIcon () :JSX.Element { return Icons.play }
+const PlayUI :ItemUI = {
+  addPlaceholder: "Title",
+  itemView: store => <PlayView key={store.key} store={store} />,
+  titleIcon: Icons.play,
+  doneTitle: "Played",
+  bulkEditor: bulkPlayEditor
 }
-export const ToPlayView = UI.withStyles(jvStyles)(ToPlayViewRaw)
 
 function bulkPlayEditor (item :M.Item) :JSX.Element {
   const play = item as M.Play
@@ -726,15 +629,6 @@ class DineView extends ItemView {
   }
 }
 
-export class ToDineViewRaw extends ItemsViewRaw {
-  protected get addPlaceholder () :string { return "Name" }
-  protected makeItemView (store :S.ItemStore) :JSX.Element {
-    return <DineView key={store.key} store={store} />
-  }
-  protected titleIcon () :JSX.Element { return Icons.food }
-}
-export const ToDineView = UI.withStyles(jvStyles)(ToDineViewRaw)
-
 function bulkDineEditor (item :M.Item) :JSX.Element {
   const dine = item as M.Dine
   return (
@@ -747,4 +641,183 @@ function bulkDineEditor (item :M.Item) :JSX.Element {
       {tableCell(completedEditor(dine.completed.syncValue), "100px")}
     </UI.TableRow>
   )
+}
+
+const DineUI :ItemUI = {
+  addPlaceholder: "Name",
+  itemView: store => <DineView key={store.key} store={store} />,
+  titleIcon: Icons.food,
+  doneTitle: "Dined",
+  bulkEditor: bulkDineEditor
+}
+
+// ----------
+// Items view
+
+export function itemUI (type :M.ItemType) :ItemUI {
+  switch (type) {
+  case M.ItemType.BUILD: return BuildUI
+  case  M.ItemType.READ: return ReadUI
+  case M.ItemType.WATCH: return WatchUI
+  case  M.ItemType.HEAR: return HearUI
+  case  M.ItemType.PLAY: return PlayUI
+  case  M.ItemType.DINE: return DineUI
+  default: throw new Error(`TODO: ${type}`)
+  }
+}
+
+const ivStyles = (theme :UI.Theme) => UI.createStyles({
+  grow: {
+    flexGrow: 1,
+  },
+  spacing: {
+    unit: 4,
+  },
+  content: {
+    paddingBottom: theme.mixins.toolbar.minHeight,
+  },
+  addText: {
+    flexGrow: 1,
+    color: "white",
+    borderBottom: "1px solid white"
+  },
+})
+
+interface IVProps extends UI.WithStyles<typeof ivStyles> {
+  store :S.ToXStore
+  ui :ItemUI
+}
+
+@observer
+class ItemsViewRaw extends React.Component<IVProps> {
+
+  render () {
+    const {store, classes, ui} = this.props
+    if (store.items.pending) return (
+      <UI.List>
+        <UI.ListItem><UI.ListItemText primary="Loading..." /></UI.ListItem>
+      </UI.List>
+    )
+    const parts = store.partitions
+    const entries :JSX.Element[] = []
+    for (let part of parts) {
+      entries.push(<UI.ListItem disableGutters>
+                     <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
+                     <UI.Typography className={classes.grow} variant="h6" color="inherit">
+                       {part.title}
+                     </UI.Typography>
+                   </UI.ListItem>)
+      for (let store of part.stores) entries.push(ui.itemView(store))
+    }
+
+    return <div>
+      <UI.List className={classes.content}>{entries}</UI.List>
+      <FooterBar>
+        <UI.Typography style={{marginLeft: 8, marginRight: 8}} variant="h6" color="inherit">
+          Add:</UI.Typography>
+        <UI.Input type="text" className={classes.addText} placeholder={ui.addPlaceholder}
+                  value={store.newItem}
+                  onChange={ev => store.newItem = ev.currentTarget.value}
+                  onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
+        <UI.IconButton color="inherit" aria-label="Menu"
+          onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
+      </FooterBar>
+    </div>
+  }
+
+  protected addNewEntry () {
+    const store = this.props.store
+    if (store.newItem.length === 0) return // TODO: ugh
+    store.addItem(store.newItem)
+    store.newItem = ""
+  }
+}
+export const ItemsView = UI.withStyles(ivStyles)(ItemsViewRaw)
+
+// -----------------
+// Item history view
+
+const ihvStyles = UI.createStyles({
+  grow: {
+    flexGrow: 1,
+  },
+})
+
+interface IHVProps extends UI.WithStyles<typeof ihvStyles> {
+  store :S.ItemHistoryStore
+}
+
+@observer
+class ItemHistoryViewRaw extends React.Component<IHVProps> {
+
+  render () {
+    const {store, classes} = this.props
+    const ui = itemUI(store.type)
+    return (
+      <div>
+        <UI.List>
+          <UI.ListItem disableGutters>
+            <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
+            <UI.Typography className={classes.grow} variant="h6" color="inherit">
+              {ui.doneTitle} - {store.year}
+            </UI.Typography>
+          </UI.ListItem>
+          {store.itemStores.map(store => ui.itemView(store))}
+          {store.itemStores.length == 0 ? <UI.ListItem><UI.Typography variant="subtitle1" />(empty)</UI.ListItem> : undefined}
+        </UI.List>
+        <FooterBar>
+          <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
+          {itemTypeSelect(() => store.type, type => store.type = type)}
+          {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollYear(-1))}
+          <UI.Typography variant="h6" color="inherit">{String(store.year)}</UI.Typography>
+          {U.menuButton("next", <Icons.ArrowRight />, () => store.rollYear(1))}
+        </FooterBar>
+      </div>
+    )
+  }
+}
+export const ItemHistoryView = UI.withStyles(ihvStyles)(ItemHistoryViewRaw)
+
+// --------------------
+// Bulk viewing/editing
+
+const bvStyles = UI.createStyles({
+  grow: {
+    flexGrow: 1,
+  },
+})
+
+interface BVProps extends UI.WithStyles<typeof bvStyles> {
+  store :S.BulkStore
+}
+
+@observer
+class BulkViewRaw extends React.Component<BVProps> {
+  render () {
+    const {store} = this.props
+    const itemStore = store.stores.storeFor(store.type)
+    const ui = itemUI(store.type)
+    return <div>
+      <UI.Table padding="none">
+        <UI.TableBody>{store.items.items.map(ui.bulkEditor)}</UI.TableBody>
+      </UI.Table>
+      <FooterBar>
+        <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
+        {itemTypeSelect(() => store.type, type => store.type = type)}
+        <UI.TextField fullWidth value={store.legacyData}
+                      onChange={ev => store.legacyData = ev.currentTarget.value} />
+        <UI.Button color="inherit" onClick={ev => {
+          itemStore.importLegacy(store.legacyData)
+          store.legacyData = ""
+        }}>Submit</UI.Button>
+      </FooterBar>
+    </div>
+  }
+}
+export const BulkView = UI.withStyles(ihvStyles)(BulkViewRaw)
+
+function tableCell (contents :JSX.Element, width :string = "") :JSX.Element {
+  const styles :any = {paddingLeft: 5, paddingRight: 5}
+  if (width) styles.width = width
+  return <UI.TableCell style={styles}>{contents}</UI.TableCell>
 }

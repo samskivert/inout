@@ -1,13 +1,13 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-
 import * as firebase from "firebase"
+
+// import blue from '@material-ui/core/colors/blue';
+import blueGrey from '@material-ui/core/colors/blueGrey';
+
 import * as S from "./stores"
 import * as A from "./app"
 import * as UI from "./ui"
-
-// import purple from '@material-ui/core/colors/purple';
-// import green from '@material-ui/core/colors/green';
 
 firebase.initializeApp({
   apiKey: "AIzaSyDy3Caew0ql16PM0x7laFXTcs6jih_-e8o",
@@ -16,10 +16,10 @@ firebase.initializeApp({
 })
 
 const theme = UI.createMuiTheme({
-  // palette: {
-  //   primary: purple,
-  //   secondary: green,
-  // },
+  palette: {
+    // primary: blue,
+    secondary: blueGrey,
+  },
   spacing: {
     unit: 6,
   },

@@ -109,8 +109,8 @@ class TagsProp extends Prop<string[]> {
 }
 
 export enum ItemType {
-  BUILD = "build", READ = "read", WATCH = "watch", HEAR = "hear", PLAY = "play",
-  DINE ="dine", DO = "do" }
+  READ = "read", WATCH = "watch", HEAR = "hear", PLAY = "play",
+  DINE ="dine", BUILD = "build"/*, DO = "do"*/ }
 
 export abstract class Item extends Doc {
   protected readonly props :Prop<any>[] = []

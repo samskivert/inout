@@ -63,6 +63,25 @@ class LoginViewRaw extends React.Component<UI.WithStyles<typeof lvStyles>> {
 }
 const LoginView = UI.withStyles(lvStyles)(LoginViewRaw)
 
+function itemsView (stores :S.Stores, type :M.ItemType) :JSX.Element {
+  return <V.ItemsView store={stores.storeFor(type)} ui={V.itemUI(type)} />
+}
+
+function contentView (tab :S.Tab, stores :S.Stores) :JSX.Element {
+  switch (tab) {
+  case S.Tab.JOURNAL: return <V.JournumView store={stores.journal} />
+  case    S.Tab.READ: return itemsView(stores, M.ItemType.READ)
+  case   S.Tab.WATCH: return itemsView(stores, M.ItemType.WATCH)
+  case    S.Tab.HEAR: return itemsView(stores, M.ItemType.HEAR)
+  case    S.Tab.PLAY: return itemsView(stores, M.ItemType.PLAY)
+  case    S.Tab.DINE: return itemsView(stores, M.ItemType.DINE)
+  case   S.Tab.BUILD: return itemsView(stores, M.ItemType.BUILD)
+  case S.Tab.HISTORY: return <V.ItemHistoryView store={stores.history} />
+  case    S.Tab.BULK: return <V.BulkView store={stores.bulk} />
+  default:            return <div>TODO: handle {tab}</div>
+  }
+}
+
 const avStyles = (theme :UI.Theme) => UI.createStyles({
   root: {
     flexGrow: 1,
@@ -72,10 +91,11 @@ const avStyles = (theme :UI.Theme) => UI.createStyles({
   },
   content: {
     marginTop: theme.mixins.toolbar.minHeight,
+    paddingBottom: theme.mixins.toolbar.minHeight,
   }
 })
 
-interface AVProps extends UI.WithStyles<typeof avStyles> {
+interface AVProps extends UI.WithStyles<typeof avStyles>, UI.WithWidth {
   store :S.AppStore
 }
 
@@ -84,18 +104,20 @@ export class AppViewRaw extends React.Component<AVProps> {
 
   render () {
     // we have to check user to ensure an observable depend, meh
-    const {classes, store} = this.props, {user, stores} = store
+    const {classes, store, width} = this.props, {user, stores} = store
 
     const toolbar = (user && stores) ? (
       <UI.Toolbar>
-        {menuButton("journal", <Icons.CalendarToday />, () => store.mode = S.Tab.JOURNAL)}
-        {menuButton("build", Icons.build, () => store.mode = S.Tab.BUILD)}
-        {menuButton("read", Icons.book, () => store.mode = S.Tab.READ)}
-        {menuButton("watch", Icons.movie, () => store.mode = S.Tab.WATCH)}
-        {menuButton("hear", Icons.music, () => store.mode = S.Tab.HEAR)}
-        {menuButton("play", Icons.play, () => store.mode = S.Tab.PLAY)}
-        {menuButton("dine", Icons.food, () => store.mode = S.Tab.DINE)}
-        {menuButton("bulk", Icons.bulk, () => store.mode = S.Tab.BULK)}
+        <UI.Typography style={{marginRight: 5}} variant="h6" color="inherit">I/O</UI.Typography>
+        {menuButton("journal", Icons.journal, () => store.tab = S.Tab.JOURNAL)}
+        {menuButton("read", Icons.book, () => store.tab = S.Tab.READ)}
+        {menuButton("watch", Icons.movie, () => store.tab = S.Tab.WATCH)}
+        {menuButton("hear", Icons.music, () => store.tab = S.Tab.HEAR)}
+        {menuButton("play", Icons.play, () => store.tab = S.Tab.PLAY)}
+        {menuButton("dine", Icons.food, () => store.tab = S.Tab.DINE)}
+        {menuButton("build", Icons.build, () => store.tab = S.Tab.BUILD)}
+        {menuButton("history", Icons.history, () => store.tab = S.Tab.HISTORY)}
+        {width === "xs" ? undefined : menuButton("bulk", Icons.bulk, () => store.tab = S.Tab.BULK)}
         <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
         <UI.IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
           <Icons.CloudOff /></UI.IconButton>
@@ -105,7 +127,7 @@ export class AppViewRaw extends React.Component<AVProps> {
         <UI.Typography variant="h6" color="inherit">Input/Output</UI.Typography>
       </UI.Toolbar>
     )
-    const content = (user && stores) ? this.contentView(stores) : <LoginView />
+    const content = (user && stores) ? contentView(store.tab, stores) : <LoginView />
 
     return (
       <div className={classes.root}>
@@ -114,20 +136,5 @@ export class AppViewRaw extends React.Component<AVProps> {
       </div>
     )
   }
-
-  protected contentView (stores :S.Stores) :JSX.Element {
-    const mode = this.props.store.mode
-    switch (mode) {
-    case S.Tab.JOURNAL: return <V.JournumView store={stores.journal} />
-    case   S.Tab.BUILD: return <V.ToBuildView store={stores.storeFor(M.ItemType.BUILD)} />
-    case    S.Tab.READ: return <V.ToReadView store={stores.storeFor(M.ItemType.READ)} />
-    case   S.Tab.WATCH: return <V.ToWatchView store={stores.storeFor(M.ItemType.WATCH)} />
-    case    S.Tab.HEAR: return <V.ToHearView store={stores.storeFor(M.ItemType.HEAR)} />
-    case    S.Tab.PLAY: return <V.ToPlayView store={stores.storeFor(M.ItemType.PLAY)} />
-    case    S.Tab.DINE: return <V.ToDineView store={stores.storeFor(M.ItemType.DINE)} />
-    case    S.Tab.BULK: return <V.BulkView store={stores.bulk} />
-    default:            return <div>TODO: handle {mode}</div>
-    }
-  }
 }
-export const AppView = UI.withStyles(avStyles)(AppViewRaw)
+export const AppView = UI.withStyles(avStyles)(UI.withWidth()(AppViewRaw))
