@@ -1,5 +1,5 @@
 import * as firebase from "firebase"
-import { observable, observe, computed, toJS } from "mobx"
+import { IObservableValue, observable, observe, computed, toJS } from "mobx"
 import { Stamp, fromStamp } from "./util"
 
 export type ID = string
@@ -7,6 +7,12 @@ export type URL = string
 
 type Ref = firebase.firestore.DocumentReference
 type Data = firebase.firestore.DocumentData
+const DeleteValue = firebase.firestore.FieldValue.delete()
+
+function assertDefined<T> (value :T|undefined) :T {
+  if (value) return value
+  throw new Error(`Illegal undefined value`)
+}
 
 function updateRef (ref :Ref, data :Data) {
   ref.update(data).
@@ -14,19 +20,21 @@ function updateRef (ref :Ref, data :Data) {
     catch(err => console.warn(`Failed to update ${ref.id}: ${err}`))
 }
 
+type PropKey = string|number|symbol
+
+function syncRef (ref :Ref, prop :PropKey, refprop :PropKey, newValue :any) {
+  console.log(`Syncing ${String(prop)} = '${newValue}' (to ${String(refprop)})`)
+  updateRef(ref, {[refprop]: newValue === undefined ? DeleteValue : newValue})
+}
+
 abstract class Doc {
-  private _syncing = true
+  protected _syncing = true
 
   constructor (readonly ref :Ref, data :Data) {}
 
-  noteSync<T> (owner :T, prop :keyof T, refprop :string|number|symbol = prop) {
+  noteSync<T> (owner :T, prop :keyof T, refprop :PropKey = prop) {
     observe(owner, prop, change => {
-      if (this._syncing) {
-        console.log(`Syncing ${prop} = '${change.newValue}' (to ${String(refprop)})`)
-        const newValue = change.newValue === undefined ?
-          firebase.firestore.FieldValue.delete() : change.newValue
-        updateRef(this.ref, {[refprop]: newValue})
-      }
+      if (this._syncing) syncRef(this.ref, prop, refprop, change.newValue)
     })
     // TODO: may want to keep track of observers & allow removal/clearing?
   }
@@ -42,145 +50,167 @@ abstract class Doc {
 
 // Input model
 
+abstract class Prop<T> {
+  get value () :T { return this.syncValue.get() }
+  abstract get name () :string
+  abstract get syncValue () :IObservableValue<T>
+  abstract read (data :Data) :void
+  abstract write (data :Data) :void
+  abstract startEdit () :void
+  abstract commitEdit () :void
+}
+
+class SimpleProp<T> extends Prop<T> {
+  syncValue :IObservableValue<T>
+  editValue :IObservableValue<T>
+
+  constructor (readonly name :string, defval :T) {
+    super()
+    this.syncValue = observable.box(defval)
+    this.editValue = observable.box(defval)
+  }
+
+  read (data :Data) {
+    this.syncValue.set(data[this.name])
+  }
+  write (data :Data) {
+    data[this.name] = this.value
+  }
+  startEdit () {
+    this.editValue.set(this.value)
+  }
+  commitEdit () {
+    this.syncValue.set(this.editValue.get())
+  }
+}
+
+function splitTags (text :string) :string[] {
+  return text.split(" ").map(tag => tag.trim()).filter(tag => tag.length > 0)
+}
+
+class TagsProp extends Prop<string[]> {
+  get name () :string { return "tags" }
+  syncValue :IObservableValue<string[]> = observable.box([])
+  editValue :IObservableValue<string> = observable.box("")
+
+  read (data :Data) {
+    this.syncValue.set(data.tags || [])
+  }
+  write (data :Data) {
+    data.tags = this.value
+  }
+  startEdit () {
+    this.editValue.set(this.value.join(" "))
+  }
+  commitEdit () {
+    const tags = this.editValue.get()
+    this.syncValue.set(tags ? splitTags(tags) : [])
+  }
+}
+
+export enum ItemType {
+  BUILD = "build", READ = "read", WATCH = "watch", HEAR = "hear", PLAY = "play",
+  DINE ="dine", DO = "do" }
+
 export abstract class Item extends Doc {
+  protected readonly props :Prop<any>[] = []
+
   readonly created :firebase.firestore.Timestamp
-  @observable tags :string[] = []
+  readonly tags = this.addProp(new TagsProp())
+  readonly link = this.newProp<URL|void>("link", undefined)
   // we use null here (rather than undefined) because we need a null-valued property
   // in the database to enable queries for property == null (incomplete items)
-  @observable completed :Stamp|null = null
-  @observable link :URL|void = undefined
+  readonly completed = this.newProp<Stamp|null>("completed", null)
 
   constructor (ref :Ref, data :Data) {
     super(ref, data)
     this.created = data.created
-    this.noteSync(this, "completed")
-    this.noteSync(this, "tags")
-    this.noteSync(this, "link")
+  }
+
+  startEdit () {
+    for (let prop of this.props) prop.startEdit()
+  }
+  commitEdit () {
+    for (let prop of this.props) prop.commitEdit()
   }
 
   protected readProps (data :Data) {
-    this.completed = data.completed
-    this.tags = data.tags || []
-    this.link = data.link
+    for (let prop of this.props) {
+      prop.read(data)
+    }
+  }
+
+  protected newProp<T> (name :string, defval :T) {
+    return this.addProp(new SimpleProp(name, defval))
+  }
+
+  protected addProp<T,P extends Prop<T>> (prop :P) :P {
+    prop.syncValue.observe(change => {
+      if (this._syncing) syncRef(this.ref, prop.name, prop.name, change.newValue)
+    })
+    this.props.push(prop)
+    return prop
   }
 }
 
 export abstract class Protracted extends Item {
-  @observable started :Stamp|void = undefined
-
-  constructor (ref :Ref, data :Data) {
-    super(ref, data)
-    this.noteSync(this, "started")
-  }
-
-  protected readProps (data :Data) {
-    super.readProps(data)
-    this.started = data.started
-  }
+  readonly started = this.newProp<Stamp|void>("started", undefined)
+  readonly abandoned = this.newProp("abandoned", false)
 }
 
 export class Build extends Protracted {
-  @observable text :string = ""
-
-  constructor (ref :Ref, data :Data) {
-    super(ref, data)
-    this.noteSync(this, "text")
-  }
-
-  protected readProps (data :Data) {
-    super.readProps(data)
-    this.text = data.text
-  }
+  readonly text = this.newProp("text", "")
 }
 
 export class Do extends Item {
-  @observable text :string = ""
-
-  constructor (ref :Ref, data :Data) {
-    super(ref, data)
-    this.noteSync(this, "text")
-  }
-
-  protected readProps (data :Data) {
-    super.readProps(data)
-    this.text = data.text
-  }
+  readonly text = this.newProp("text", "")
 }
 
-export enum Rating { BAD, MEH, OK, GOOD, GREAT }
+type Rating = "none" | "bad" | "meh" | "ok" | "good" | "great"
 
 export abstract class Consume extends Item {
-  @observable rating :Rating|void = undefined
-  @observable recommender :string|void = undefined
-
-  constructor (ref :Ref, data :Data) {
-    super(ref, data)
-    this.noteSync(this, "rating")
-    this.noteSync(this, "recommender")
-  }
-
-  protected readProps (data :Data) {
-    super.readProps(data)
-    this.rating = data.rating
-    this.recommender = data.recommender
-  }
+  readonly rating = this.newProp<Rating>("rating", "none")
+  readonly recommender = this.newProp<string|void>("recommender", undefined)
 }
 
 export type ReadType = "article" | "book" | "paper"
-
 export class Read extends Protracted {
-  @observable title = ""
-  @observable author = ""
-  @observable type = "book"
-  @observable abandoned = false
-
-  constructor (ref :Ref, data :Data) {
-    super(ref, data)
-    this.noteSync(this, "title")
-    this.noteSync(this, "author")
-    this.noteSync(this, "type")
-    this.noteSync(this, "abandoned")
-  }
-
-  protected readProps (data :Data) {
-    super.readProps(data)
-    this.title = data.title
-    this.author = data.author
-    this.type = data.type
-    this.abandoned = data.abandoned
-  }
+  readonly title = this.newProp("title", "")
+  readonly author = this.newProp<string|void>("author", undefined)
+  readonly type = this.newProp<ReadType>("type", "book")
+  // have to repeat consume as we cannot multiply inherit from protected & consume
+  readonly rating = this.newProp<Rating>("rating", "none")
+  readonly recommender = this.newProp<string|void>("recommender", undefined)
 }
 
-// export interface Play extends Consumable {
-//   title :string
-//   started :Stamp|void
-//   outcome :Outcome|void
-// }
+export type WatchType = "show" | "film" | "video" | "other"
+export class Watch extends Consume {
+  readonly title = this.newProp("title", "")
+  readonly director = this.newProp<string|void>("director", undefined)
+  readonly type = this.newProp<WatchType>("type", "film")
+}
 
-// export enum ListenType { SONG, ALBUM, OTHER }
+export type HearType = "song" | "album" | "other"
+export class Hear extends Consume {
+  readonly title = this.newProp("title", "")
+  readonly artist = this.newProp<string|void>("artist", undefined)
+  readonly type = this.newProp<HearType>("type", "song")
+}
 
-// export interface Listen extends Consumable {
-//   type :ListenType
-//   title :string
-//   artist :string
-// }
+export type Platform = "pc" | "mobile" | "switch" | "ps4" | "xbox" | "3ds" | "vita" |
+  "wiiu" | "ps3" | "wii" | "table"
 
-// export enum SeeType { SHOW, FILM, VIDEO, OTHER }
+export class Play extends Protracted {
+  readonly title = this.newProp("title", "")
+  readonly platform = this.newProp<Platform>("platform", "pc")
+  // have to repeat consume as we cannot multiply inherit from protected & consume
+  readonly rating = this.newProp<Rating>("rating", "none")
+  readonly recommender = this.newProp<string|void>("recommender", undefined)
+}
 
-// export interface See extends Consumable {
-//   type :SeeType
-//   title :string
-//   director :string|void
-// }
-
-// export interface Dine extends Consumable {
-//   name :string
-//   location :string
-// }
-
-function assertDefined<T> (value :T|undefined) :T {
-  if (value) return value
-  throw new Error(`Illegal undefined value`)
+export class Dine extends Consume {
+  readonly name = this.newProp("name", "")
+  readonly location = this.newProp<string|void>("location", undefined)
 }
 
 // Output model
@@ -258,7 +288,7 @@ export class Journum extends Doc {
   deleteEntry (key :string) {
     const changes :Data = {}
     if (this.entryMap.delete(key)) {
-      changes[`entries.${key}`] = firebase.firestore.FieldValue.delete()
+      changes[`entries.${key}`] = DeleteValue
     }
     const oidx = this.order.indexOf(key)
     if (oidx >= 0) {

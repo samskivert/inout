@@ -7,17 +7,17 @@ type Ref = firebase.firestore.DocumentReference
 type Data = firebase.firestore.DocumentData
 type ColRef = firebase.firestore.CollectionReference
 
-export class Items<I extends M.Item> {
+export class Items {
   private _unsubscribe = () => {}
 
   @observable pending = true
-  @observable items :I[] = []
+  @observable items :M.Item[] = []
 
   constructor (readonly query :firebase.firestore.Query,
-               decoder :(ref :Ref, data :Data) => I,
-               sortComp :(a :I, b :I) => number) {
+               decoder :(ref :Ref, data :Data) => M.Item,
+               sortComp :(a :M.Item, b :M.Item) => number) {
     this._unsubscribe = query.onSnapshot(snap => {
-      let newItems :I[] = []
+      let newItems :M.Item[] = []
       // TODO: track by key, re-read existing items, create new, toss old
       snap.forEach(doc => {
         const data = doc.data()
@@ -38,28 +38,40 @@ export class Items<I extends M.Item> {
   }
 }
 
-export class ItemCollection<I extends M.Item> {
+const ByCreated = (a :M.Item, b :M.Item) => a.created.seconds - b.created.seconds
+const ByCompleted = (a :M.Item, b :M.Item) =>
+  (b.completed.value || "").localeCompare(a.completed.value || "")
+const ByHistory = (a :M.Item, b :M.Item) => {
+  if (a.completed.value && b.completed.value) return ByCompleted(a, b)
+  if (a.completed.value) return 1
+  if (b.completed.value) return -1
+  return ByCreated(a, b)
+}
+
+export class ItemCollection {
 
   constructor (readonly db :DB,
                readonly name :string,
-               readonly decoder :(ref :Ref, data :Data) => I) {}
+               readonly decoder :(ref :Ref, data :Data) => M.Item) {}
 
   get col () :ColRef { return this.db.userCollection(this.name) }
 
-  items (completionYear :number|void = undefined) :Items<I> {
+  items (completionYear :number|void = undefined) :Items {
     const query = (completionYear === undefined ?
                    this.col.where("completed", "==", null) :
                    this.col.where("completed", ">=", `${completionYear}-01-01`).
                             where("completed", "<", `${completionYear+1}-01-01`))
-    const sorter = completionYear === undefined ?
-      (a :M.Item, b :M.Item) => a.created.seconds - b.created.seconds :
-      (a :M.Item, b :M.Item) => (b.completed || "").localeCompare(a.completed || "")
-    return new Items<I>(query, this.decoder, sorter)
+    const sorter = completionYear === undefined ? ByCreated : ByCompleted
+    return new Items(query, this.decoder, sorter)
   }
 
-  async create (data :Data) :Promise<I> {
-    data.created = firebase.firestore.FieldValue.serverTimestamp()
-    data.completed = null
+  allItems () :Items {
+    return new Items(this.col, this.decoder, ByHistory)
+  }
+
+  async create (data :Data) :Promise<M.Item> {
+    if (!data.created) data.created = firebase.firestore.FieldValue.serverTimestamp()
+    if (!data.completed) data.completed = null
     const docref = await this.col.add(data)
     return this.decoder(docref, data)
   }
@@ -70,12 +82,28 @@ export class DB {
   uid :string = "none"
   build = new ItemCollection(this, "build", (ref, data) => new M.Build(ref, data))
   read  = new ItemCollection(this, "read",  (ref, data) => new M.Read(ref, data))
+  watch = new ItemCollection(this, "watch", (ref, data) => new M.Watch(ref, data))
+  hear  = new ItemCollection(this, "hear",  (ref, data) => new M.Hear(ref, data))
+  play  = new ItemCollection(this, "play",  (ref, data) => new M.Play(ref, data))
+  dine  = new ItemCollection(this, "dine",  (ref, data) => new M.Dine(ref, data))
 
   constructor () {
     this.db.settings({timestampsInSnapshots: true})
     this.db.enablePersistence().catch(error => {
       console.warn(`Failed to enable offline mode: ${error}`)
     })
+  }
+
+  coll (type :M.ItemType) :ItemCollection {
+    switch (type) {
+    case M.ItemType.BUILD: return this.build
+    case M.ItemType.READ: return this.read
+    case M.ItemType.WATCH: return this.watch
+    case M.ItemType.HEAR: return this.hear
+    case M.ItemType.PLAY: return this.play
+    case M.ItemType.DINE: return this.dine
+    default: return this.build // TODO
+    }
   }
 
   setUserId (uid :string) {

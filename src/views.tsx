@@ -6,6 +6,7 @@ import * as Icons from './icons';
 import * as M from "./model"
 import * as S from "./stores"
 import * as U from "./util"
+import * as DB from "./db"
 
 @observer
 class EntryView extends React.Component<{store :S.EntryStore}> {
@@ -110,12 +111,12 @@ const txvStyles = UI.createStyles({
   },
 })
 
-interface TXVProps<I extends M.Item> extends UI.WithStyles<typeof txvStyles> {
-  store :S.ToXStore<I>
+interface TXVProps extends UI.WithStyles<typeof txvStyles> {
+  store :S.ToXStore
 }
 
 @observer
-class ToXViewRaw<I extends M.Item> extends React.Component<TXVProps<I>> {
+class ItemsViewRaw extends React.Component<TXVProps> {
 
   render () {
     const {store, classes} = this.props
@@ -193,23 +194,29 @@ const Tag = UI.withStyles(tagStyles)(TagRaw)
 class ItemView extends React.Component<{store :S.ItemStore}> {
 
   render () {
-    const store = this.props.store
+    const store = this.props.store, link = store.item.link.value
+    // TODO: window.open is kinda lame, make the link a real link...
     return (
       <UI.ListItem disableGutters>
         {this.makeCheckButton(store)}
-        <UI.ListItemText primary={this.primaryText} secondary={this.secondaryText} />
-        {store.item.tags.map(tag => <Tag key={tag} tag={tag} />)}
+        <UI.ListItemText primary={this.primaryText} secondary={this.secondaryText || ""} />
+        {this.tags().map(tag => <Tag key={tag} tag={tag} />)}
+        {link ? U.menuButton("link", Icons.link, () => window.open(link)) : undefined}
         {U.menuButton("edit", Icons.edit, () => store.startEdit())}
         {this.createEditDialog()}
      </UI.ListItem>
     )
   }
 
-  protected get primaryText () :string { return "TODO" }
-  protected get secondaryText () :string { return "" }
+  // this should be abstract but making this class abstract breaks the @observer annotation and we
+  // enter a world of incidental bullshit, yay
+  protected get primaryText () :string { return "<missing>" }
+  protected get secondaryText () :string|void { return undefined }
+
+  protected tags () :string[] { return this.props.store.item.tags.value }
 
   protected makeCheckButton (store :S.ItemStore) :JSX.Element {
-    return store.item.completed ?
+    return store.item.completed.value ?
       U.menuButton("check", Icons.checkedBox, () => store.uncompleteItem()) :
       U.menuButton("check", Icons.uncheckedBox, () => store.completeItem())
   }
@@ -222,48 +229,66 @@ class ItemView extends React.Component<{store :S.ItemStore}> {
   }
 }
 
-function textEditor (label :string, prop :IObservableValue<string>, cells :UI.GridSize = 12) {
-  return <UI.Grid key={label} item xs={cells}>
-    <UI.TextField label={label} fullWidth value={prop.get()}
-                  onChange={ev => prop.set(ev.currentTarget.value)} />
-  </UI.Grid>
+function textEditor (label :string, prop :IObservableValue<string>) {
+  return <UI.TextField label={label} fullWidth value={prop.get()}
+                       onChange={ev => prop.set(ev.currentTarget.value)} />
+}
+function gridTextEditor (label :string, prop :IObservableValue<string>, cells :UI.GridSize = 12) {
+  return <UI.Grid key={label} item xs={cells}>{textEditor(label, prop)}</UI.Grid>
 }
 
-function dateEditor (label :string, prop :IObservableValue<string|void>,
+function optTextEditor (label :string, prop :IObservableValue<string|void>) {
+  const onValue = (value :string|void) => prop.set(value ? value : undefined)
+  return <UI.TextField label={label} fullWidth value={prop.get() || ""}
+                       onChange={ev => onValue(ev.currentTarget.value)} />
+}
+
+function gridOptTextEditor (label :string, prop :IObservableValue<string|void>, cells :UI.GridSize = 12) {
+  return <UI.Grid key={label} item xs={cells}>{optTextEditor(label, prop)}</UI.Grid>
+}
+
+function dateEditor (label :string, prop :IObservableValue<string|void>) :JSX.Element {
+  return <UI.TextField label={label} type="date" InputLabelProps={{shrink: true}}
+                       value={prop.get() || ""}
+                       onChange={ev => prop.set(ev.currentTarget.value || undefined)} />
+}
+
+function gridDateEditor (label :string, prop :IObservableValue<string|void>,
                      cells :UI.GridSize = 6) :JSX.Element {
-  return <UI.Grid key={label} item xs={cells}>
-    <UI.TextField label={label} type="date" InputLabelProps={{shrink: true}}
-                  value={prop.get() || ""}
-                  onChange={ev => prop.set(ev.currentTarget.value || undefined)} />
-  </UI.Grid>
+  return <UI.Grid key={label} item xs={cells}>{dateEditor(label, prop)}</UI.Grid>
 }
 
-function enumEditor (key :string, options :{value :string, label :string}[],
-                     prop :IObservableValue<string>, cells :UI.GridSize = 6) {
-  const id = `enum-${key}`
-  return <UI.Grid key={key} item xs={cells}>
-    <UI.FormControl>
-      <UI.InputLabel htmlFor={id}>Type</UI.InputLabel>
-        <UI.Select native inputProps={{name: 'type', id}} value={prop.get()}
-                   onChange={ev => prop.set(ev.target.value)}>
-          {options.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
-      </UI.Select>
-    </UI.FormControl>
-  </UI.Grid>
+function completedEditor (prop :IObservableValue<string|null>) :JSX.Element {
+  return <UI.TextField label="Completed" type="date" InputLabelProps={{shrink: true}}
+                       value={prop.get() || ""}
+                       onChange={ev => prop.set(ev.currentTarget.value || null)} />
+}
+
+function gridCompletedEditor (prop :IObservableValue<string|null>, cells :UI.GridSize = 6) :JSX.Element {
+  return <UI.Grid key="completed" item xs={cells}>{completedEditor(prop)}</UI.Grid>
+}
+
+function enumEditor (label :string, options :{value :string, label :string}[],
+                     prop :IObservableValue<string>) {
+  const id = `enum-${label}`
+  return <UI.FormControl>
+    <UI.InputLabel htmlFor={id}>{label}</UI.InputLabel>
+    <UI.Select native inputProps={{name: 'type', id}} value={prop.get()}
+               onChange={ev => prop.set(ev.target.value)}>
+      {options.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
+    </UI.Select>
+  </UI.FormControl>
+}
+
+function gridEnumEditor (label :string, options :{value :string, label :string}[],
+                         prop :IObservableValue<string>, cells :UI.GridSize = 6) {
+  return <UI.Grid key={label} item xs={cells}>{enumEditor(label, options, prop)}</UI.Grid>
 }
 
 function boolEditor (label :string, prop :IObservableValue<boolean>, cells :UI.GridSize = 6) {
   const check = <UI.Checkbox checked={prop.get()} onChange={ev => prop.set(ev.target.checked)} />
   return <UI.Grid key={label} item xs={cells}>
     <UI.FormControlLabel control={check} label={label} />
-  </UI.Grid>
-}
-
-function completedEditor (store :S.ItemStore, cells :UI.GridSize = 6) :JSX.Element {
-  return <UI.Grid key="completed" item xs={cells}>
-    <UI.TextField label="Completed" type="date" InputLabelProps={{shrink: true}}
-                  value={store.editCompleted || ""}
-                  onChange={ev => store.editCompleted = ev.currentTarget.value || null} />
   </UI.Grid>
 }
 
@@ -308,59 +333,380 @@ const ItemEditDialog = UI.withStyles(iedStyles)(UI.withMobileDialog<IEDProps>()(
 
 class ProtractedView extends ItemView {
   protected makeCheckButton (store :S.ItemStore) :JSX.Element {
-    const pstore = store as S.ProtractedStore
-    if (pstore.item.started) return super.makeCheckButton(store) // complete item button
-    else return U.menuButton("start", Icons.start, () => pstore.startItem())
+    const item = store.item as M.Protracted
+    if (item.started.value) return super.makeCheckButton(store) // complete item button
+    else return U.menuButton("start", Icons.start, () => store.startItem())
   }
 }
 
-class BuildView extends ProtractedView {
-  get store () :S.BuildStore { return this.props.store as S.BuildStore }
+const RatingTypes = [
+  {value: "none", label: "None"},
+  {value: "bad", label: "Bad"},
+  {value: "meh", label: "Meh"},
+  {value: "ok", label: "OK"},
+  {value: "good", label: "Good"},
+  {value: "great", label: "Great"}]
 
-  protected get primaryText () :string { return this.store.item.text }
+// --------------------
+// Bulk viewing/editing
+
+@observer
+class BulkItemsView extends React.Component<{
+  items :DB.Items
+  formatter :(item :M.Item) => JSX.Element
+}> {
+  render () {
+    const {items, formatter} = this.props
+    return (
+      <UI.Table padding="none">
+        <UI.TableBody>
+        {items.items.map(formatter)}
+        </UI.TableBody>
+      </UI.Table>
+    )
+  }
+}
+
+@observer
+export class BulkView extends React.Component<{store :S.BulkStore}> {
+  render () {
+    const store = this.props.store
+    const itemStore = store.stores.storeFor(store.type)
+    return <div>
+      <UI.Table padding="dense">
+        <UI.TableBody><UI.TableRow>
+          <UI.TableCell>
+          <UI.FormControl>
+            <UI.InputLabel htmlFor={"type"}>Type</UI.InputLabel>
+            <UI.Select native inputProps={{name: 'type', id: "type"}} value={store.type}
+              onChange={ev => store.type = ev.target.value as M.ItemType}>
+              {Object.keys(M.ItemType).map(key => <option key={key} value={M.ItemType[key]}>{key}</option>)}
+            </UI.Select>
+          </UI.FormControl>
+          </UI.TableCell>
+          <UI.TableCell>
+          <UI.TextField label="Import" fullWidth value={store.legacyData}
+                        onChange={ev => store.legacyData = ev.currentTarget.value} />
+          </UI.TableCell>
+          <UI.TableCell>
+          <UI.Button onClick={ev => {
+            itemStore.importLegacy(store.legacyData)
+            store.legacyData = ""
+          }}>Submit</UI.Button>
+          </UI.TableCell>
+        </UI.TableRow></UI.TableBody>
+      </UI.Table>
+      <BulkItemsView items={store.items} formatter={bulkItemFormatter(store.type)} />
+    </div>
+  }
+}
+
+function tableCell (contents :JSX.Element, width :string = "") :JSX.Element {
+  const styles :any = {paddingLeft: 5, paddingRight: 5}
+  if (width) styles.width = width
+  return <UI.TableCell style={styles}>{contents}</UI.TableCell>
+}
+
+function bulkItemFormatter (type :M.ItemType) :(item :M.Item) => JSX.Element {
+  switch (type) {
+  case M.ItemType.BUILD: return bulkBuildEditor
+  case  M.ItemType.READ: return bulkReadEditor
+  case M.ItemType.WATCH: return bulkWatchEditor
+  case  M.ItemType.HEAR: return bulkHearEditor
+  case  M.ItemType.PLAY: return bulkPlayEditor
+  case  M.ItemType.DINE: return bulkDineEditor
+  default: throw new Error(`TODO: ${type}`)
+  }
+}
+
+// ----
+// BUILD
+
+class BuildView extends ProtractedView {
+  get item () :M.Build { return this.props.store.item as M.Build }
+
+  protected get primaryText () :string { return this.item.text.value }
 
   protected addDialogItems (items :JSX.Element[]) {
-    const store = this.store as S.BuildStore
-    items.push(textEditor("Text", store.editText.value))
-    items.push(textEditor("Tags", store.editTags.value))
-    items.push(dateEditor("Started", store.editStarted.value))
-    items.push(completedEditor(store))
+    const item = this.item
+    items.push(gridTextEditor("Text", item.text.editValue))
+    items.push(gridOptTextEditor("Tags", item.tags.editValue, 6))
+    items.push(gridOptTextEditor("Link", item.link.editValue, 6))
+    items.push(gridDateEditor("Started", item.started.editValue))
+    items.push(gridCompletedEditor(item.completed.editValue))
     super.addDialogItems(items)
   }
 }
 
-export class ToBuildViewRaw extends ToXViewRaw<M.Build> {
+export class ToBuildViewRaw extends ItemsViewRaw {
   makeItemView (store :S.ItemStore) :JSX.Element {
     return <BuildView key={store.key} store={store} />
   }
 }
 export const ToBuildView = UI.withStyles(jvStyles)(ToBuildViewRaw)
 
+function bulkBuildEditor (item :M.Item) :JSX.Element {
+  const build = item as M.Build
+  return (
+    <UI.TableRow key={item.ref.id}>
+      {tableCell(textEditor("Text", build.text.syncValue), "40%")}
+      {tableCell(optTextEditor("Link", build.link.syncValue))}
+      {tableCell(dateEditor("Started", build.started.syncValue), "100px")}
+      {tableCell(completedEditor(build.completed.syncValue), "100px")}
+    </UI.TableRow>
+  )
+}
+
+// ----
+// READ
+
 const ReadTypes = [{value: "article", label: "Article"},
                    {value: "book", label: "Book"},
                    {value: "paper", label: "Paper"}]
 
 class ReadView extends ProtractedView {
-  get store () :S.ReadStore { return this.props.store as S.ReadStore }
-  protected get primaryText () :string { return this.store.item.title }
-  protected get secondaryText () :string { return this.store.item.author }
+  get item () :M.Read { return this.props.store.item as M.Read }
+  protected get primaryText () :string { return this.item.title.value }
+  protected get secondaryText () :string|void { return this.item.author.value }
+
+  protected tags () :string[] {
+    const tags = super.tags().slice(0)
+    tags.push(this.item.type.value)
+    return tags
+  }
 
   protected addDialogItems (items :JSX.Element[]) {
-    const store = this.props.store as S.ReadStore
-    items.push(textEditor("Title", store.editTitle.value))
-    items.push(textEditor("Author", store.editAuthor.value))
-    items.push(enumEditor("type", ReadTypes, store.editType.value))
-    items.push(boolEditor("Abandoned", store.editAbandoned.value))
-    items.push(textEditor("Tags", store.editTags.value))
-    items.push(dateEditor("Started", store.editStarted.value))
-    items.push(completedEditor(store))
+    const item = this.item
+    items.push(gridTextEditor("Title", item.title.editValue))
+    items.push(gridOptTextEditor("Author", item.author.editValue))
+    items.push(gridEnumEditor("Type", ReadTypes, item.type.editValue))
+    items.push(boolEditor("Abandoned", item.abandoned.editValue))
+    items.push(gridOptTextEditor("Tags", item.tags.editValue, 6))
+    items.push(gridOptTextEditor("Link", item.link.editValue, 6))
+    items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
+    items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
+    items.push(gridDateEditor("Started", item.started.editValue))
+    items.push(gridCompletedEditor(item.completed.editValue))
     super.addDialogItems(items)
   }
 }
 
-export class ToReadViewRaw extends ToXViewRaw<M.Read> {
+export class ToReadViewRaw extends ItemsViewRaw {
   makeItemView (store :S.ItemStore) :JSX.Element {
     return <ReadView key={store.key} store={store} />
   }
 }
 export const ToReadView = UI.withStyles(jvStyles)(ToReadViewRaw)
+
+function bulkReadEditor (item :M.Item) :JSX.Element {
+  const read = item as M.Read
+  return (
+    <UI.TableRow key={item.ref.id}>
+      {tableCell(textEditor("Title", read.title.syncValue))}
+      {tableCell(optTextEditor("Author", read.author.syncValue), "150px")}
+      {tableCell(enumEditor("Type", ReadTypes, read.type.syncValue), "100px")}
+      {tableCell(boolEditor("Abandoned", read.abandoned.syncValue), "110px")}
+      {tableCell(optTextEditor("Link", read.link.syncValue), "200px")}
+      {tableCell(optTextEditor("Recommender", read.recommender.syncValue), "120px")}
+      {tableCell(enumEditor("Rating", RatingTypes, read.rating.syncValue), "80px")}
+      {tableCell(dateEditor("Started", read.started.syncValue), "100px")}
+      {tableCell(completedEditor(read.completed.syncValue), "100px")}
+    </UI.TableRow>
+  )
+}
+
+// ----
+// WATCH
+
+const WatchTypes = [{value: "show", label: "Show"},
+                   {value: "film", label: "Film"},
+                   {value: "video", label: "Video"},
+                   {value: "other", label: "Other"}]
+
+class WatchView extends ItemView {
+  get item () :M.Watch { return this.props.store.item as M.Watch }
+  protected get primaryText () :string { return this.item.title.value }
+  protected get secondaryText () :string|void { return this.item.director.value }
+
+  protected addDialogItems (items :JSX.Element[]) {
+    const item = this.item
+    items.push(gridTextEditor("Title", item.title.editValue))
+    items.push(gridOptTextEditor("Director", item.director.editValue, 6))
+    items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
+    items.push(gridEnumEditor("Type", WatchTypes, item.type.editValue))
+    items.push(gridOptTextEditor("Tags", item.tags.editValue, 6))
+    items.push(gridOptTextEditor("Link", item.link.editValue))
+    items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
+    items.push(gridCompletedEditor(item.completed.editValue))
+    super.addDialogItems(items)
+  }
+}
+
+export class ToWatchViewRaw extends ItemsViewRaw {
+  makeItemView (store :S.ItemStore) :JSX.Element {
+    return <WatchView key={store.key} store={store} />
+  }
+}
+export const ToWatchView = UI.withStyles(jvStyles)(ToWatchViewRaw)
+
+function bulkWatchEditor (item :M.Item) :JSX.Element {
+  const watch = item as M.Watch
+  return (
+    <UI.TableRow key={item.ref.id}>
+      {tableCell(textEditor("Title", watch.title.syncValue))}
+      {tableCell(optTextEditor("Director", watch.director.syncValue))}
+      {tableCell(enumEditor("Type", WatchTypes, watch.type.syncValue))}
+      {tableCell(optTextEditor("Link", watch.link.syncValue))}
+      {tableCell(optTextEditor("Recommender", watch.recommender.syncValue))}
+      {tableCell(enumEditor("Rating", RatingTypes, watch.rating.syncValue))}
+      {tableCell(completedEditor(watch.completed.syncValue), "100px")}
+    </UI.TableRow>
+  )
+}
+
+// ----
+// HEAR
+
+const HearTypes = [{value: "song", label: "Song"},
+                   {value: "album", label: "Album"},
+                   {value: "other", label: "Other"}]
+
+class HearView extends ItemView {
+  get item () :M.Hear { return this.props.store.item as M.Hear }
+  protected get primaryText () :string { return this.item.title.value }
+  protected get secondaryText () :string|void { return this.item.artist.value }
+
+  protected addDialogItems (items :JSX.Element[]) {
+    const item = this.item
+    items.push(gridTextEditor("Title", item.title.editValue))
+    items.push(gridOptTextEditor("Artist", item.artist.editValue))
+    items.push(gridEnumEditor("Type", HearTypes, item.type.editValue))
+    items.push(gridOptTextEditor("Tags", item.tags.editValue, 6))
+    items.push(gridOptTextEditor("Link", item.link.editValue, 6))
+    items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
+    items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
+    items.push(gridCompletedEditor(item.completed.editValue))
+    super.addDialogItems(items)
+  }
+}
+
+export class ToHearViewRaw extends ItemsViewRaw {
+  makeItemView (store :S.ItemStore) :JSX.Element {
+    return <HearView key={store.key} store={store} />
+  }
+}
+export const ToHearView = UI.withStyles(jvStyles)(ToHearViewRaw)
+
+function bulkHearEditor (item :M.Item) :JSX.Element {
+  const hear = item as M.Hear
+  return (
+    <UI.TableRow key={item.ref.id}>
+      {tableCell(textEditor("Title", hear.title.syncValue))}
+      {tableCell(optTextEditor("Artist", hear.artist.syncValue))}
+      {tableCell(enumEditor("Type", HearTypes, hear.type.syncValue))}
+      {tableCell(optTextEditor("Link", hear.link.syncValue))}
+      {tableCell(optTextEditor("Recommender", hear.recommender.syncValue))}
+      {tableCell(enumEditor("Rating", RatingTypes, hear.rating.syncValue))}
+      {tableCell(completedEditor(hear.completed.syncValue), "100px")}
+    </UI.TableRow>
+  )
+}
+
+// ----
+// PLAY
+
+const PlayTypes = [{value: "pc",     label: "PC"},
+                   {value: "mobile", label: "Mobile"},
+                   {value: "switch", label: "Switch"},
+                   {value: "ps4",    label: "PS4"},
+                   {value: "xbox",   label: "XBOX"},
+                   {value: "3ds",    label: "3DS"},
+                   {value: "vita",   label: "PS Vita"},
+                   {value: "wiiu",   label: "Wii U"},
+                   {value: "ps3",    label: "PS3"},
+                   {value: "wii",    label: "Wii"},
+                   {value: "table",  label: "Table"}]
+
+class PlayView extends ProtractedView {
+  get item () :M.Play { return this.props.store.item as M.Play }
+  protected get primaryText () :string { return this.item.title.value }
+
+  protected addDialogItems (items :JSX.Element[]) {
+    const item = this.item
+    items.push(gridTextEditor("Title", item.title.editValue))
+    items.push(gridEnumEditor("Platform", PlayTypes, item.platform.editValue))
+    items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
+    items.push(gridOptTextEditor("Tags", item.tags.editValue, 6))
+    items.push(gridOptTextEditor("Link", item.link.editValue, 6))
+    items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
+    items.push(boolEditor("Abandoned", item.abandoned.editValue))
+    items.push(gridDateEditor("Started", item.started.editValue))
+    items.push(gridCompletedEditor(item.completed.editValue))
+    super.addDialogItems(items)
+  }
+}
+
+export class ToPlayViewRaw extends ItemsViewRaw {
+  makeItemView (store :S.ItemStore) :JSX.Element {
+    return <PlayView key={store.key} store={store} />
+  }
+}
+export const ToPlayView = UI.withStyles(jvStyles)(ToPlayViewRaw)
+
+function bulkPlayEditor (item :M.Item) :JSX.Element {
+  const play = item as M.Play
+  return (
+    <UI.TableRow key={item.ref.id}>
+      {tableCell(textEditor("Title", play.title.syncValue))}
+      {tableCell(enumEditor("Platform", PlayTypes, play.platform.syncValue), "100px")}
+      {tableCell(boolEditor("Abandoned", play.abandoned.syncValue), "110px")}
+      {tableCell(optTextEditor("Link", play.link.syncValue), "200px")}
+      {tableCell(optTextEditor("Recommender", play.recommender.syncValue), "120px")}
+      {tableCell(enumEditor("Rating", RatingTypes, play.rating.syncValue), "80px")}
+      {tableCell(dateEditor("Started", play.started.syncValue), "100px")}
+      {tableCell(completedEditor(play.completed.syncValue), "100px")}
+    </UI.TableRow>
+  )
+}
+
+// ----
+// DINE
+
+class DineView extends ItemView {
+  get item () :M.Dine { return this.props.store.item as M.Dine }
+  protected get primaryText () :string { return this.item.name.value }
+  protected get secondaryText () :string|void { return this.item.location.value }
+
+  protected addDialogItems (items :JSX.Element[]) {
+    const item = this.item
+    items.push(gridTextEditor("Name", item.name.editValue))
+    items.push(gridOptTextEditor("Location", item.location.editValue))
+    items.push(gridOptTextEditor("Tags", item.tags.editValue, 6))
+    items.push(gridOptTextEditor("Link", item.link.editValue, 6))
+    items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
+    items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
+    items.push(gridCompletedEditor(item.completed.editValue))
+    super.addDialogItems(items)
+  }
+}
+
+export class ToDineViewRaw extends ItemsViewRaw {
+  makeItemView (store :S.ItemStore) :JSX.Element {
+    return <DineView key={store.key} store={store} />
+  }
+}
+export const ToDineView = UI.withStyles(jvStyles)(ToDineViewRaw)
+
+function bulkDineEditor (item :M.Item) :JSX.Element {
+  const dine = item as M.Dine
+  return (
+    <UI.TableRow key={item.ref.id}>
+      {tableCell(textEditor("Name", dine.name.syncValue))}
+      {tableCell(optTextEditor("Location", dine.location.syncValue))}
+      {tableCell(optTextEditor("Link", dine.link.syncValue))}
+      {tableCell(optTextEditor("Recommender", dine.recommender.syncValue))}
+      {tableCell(gridEnumEditor("Rating", RatingTypes, dine.rating.syncValue))}
+      {tableCell(completedEditor(dine.completed.syncValue), "100px")}
+    </UI.TableRow>
+  )
+}

@@ -1,4 +1,4 @@
-import { computed, observable, IObservableValue } from "mobx"
+import { computed, observable } from "mobx"
 import * as firebase from "firebase"
 import * as DB from "./db"
 import * as M from "./model"
@@ -6,10 +6,6 @@ import * as U from "./util"
 
 //
 // View models for to-x items
-
-function splitTags (text :string) :string[] {
-  return text.split(" ").map(tag => tag.trim()).filter(tag => tag.length > 0)
-}
 
 const tagSuffRe = /(.*)#([^ ]+)$/
 function popTags (text :string, tags :string[]) :string {
@@ -19,46 +15,24 @@ function popTags (text :string, tags :string[]) :string {
   return popTags(matches[1].trim(), tags)
 }
 
-class SyncProp<T> {
-  value :IObservableValue<T>
-  constructor (readonly name :string, defval :T) {
-    this.value = observable.box(defval)
-  }
-  startEdit (data :M.Item) {
-    this.value.set(data[this.name])
-  }
-  commitEdit (data :M.Item) {
-    data[this.name] = this.value.get()
-  }
-}
-
-class TagsProp extends SyncProp<string> {
-  constructor () { super("tags", "") }
-  startEdit (data :M.Item) {
-    this.value.set(data.tags.join(" "))
-  }
-  commitEdit (data :M.Item) {
-    const tags = this.value.get()
-    data.tags = tags ? splitTags(tags) : []
-  }
-}
-
-export abstract class ItemStore {
-  protected props :SyncProp<any>[] = []
-
+export class ItemStore {
   @observable editing = false
-  readonly editTags = this.addProp(new TagsProp())
-  @observable editCompleted :string|null = null
 
   get key () :string { return this.item.ref.id }
 
-  abstract get item () :M.Item
+  constructor (readonly item :M.Item) {}
 
   completeItem () {
-    this.item.completed = U.toStamp(new Date())
+    this.item.completed.syncValue.set(U.toStamp(new Date()))
   }
   uncompleteItem () {
-    this.item.completed = null
+    this.item.completed.syncValue.set(null)
+  }
+
+  startItem () {
+    if (this.item instanceof M.Protracted) {
+      this.item.started.syncValue.set(U.toStamp(new Date()))
+    }
   }
 
   deleteItem () {
@@ -69,55 +43,16 @@ export abstract class ItemStore {
   }
 
   startEdit () {
-    this.editCompleted = this.item.completed
     this.editing = true
-    for (let prop of this.props) {
-      prop.startEdit(this.item)
-    }
+    this.item.startEdit()
   }
   commitEdit () {
     this.editing = false
-    this.item.completed = this.editCompleted
-    for (let prop of this.props) {
-      prop.commitEdit(this.item)
-    }
+    this.item.commitEdit()
   }
   cancelEdit () {
     this.editing = false
   }
-
-  protected syncProp<T> (name :string, defval :T) :SyncProp<T> {
-    return this.addProp(new SyncProp(name, defval))
-  }
-  protected addProp<T> (prop :SyncProp<T>) :SyncProp<T> {
-    this.props.push(prop)
-    return prop
-  }
-}
-
-export abstract class ProtractedStore extends ItemStore {
-  readonly editStarted = this.syncProp<string|void>("started", undefined)
-
-  abstract get item () :M.Protracted
-
-  startItem () {
-    this.item.started = U.toStamp(new Date())
-  }
-}
-
-export class BuildStore extends ProtractedStore {
-  readonly editText = this.syncProp("text", "")
-
-  constructor (readonly item :M.Build) { super() }
-}
-
-export class ReadStore extends ProtractedStore {
-  readonly editTitle = this.syncProp("title", "")
-  readonly editAuthor = this.syncProp("author", "")
-  readonly editType = this.syncProp("type", "book")
-  readonly editAbandoned = this.syncProp("abandoned", false)
-
-  constructor (readonly item :M.Read) { super() }
 }
 
 //
@@ -128,14 +63,15 @@ type Partition = {
   stores :ItemStore[]
 }
 
-export abstract class ToXStore<I extends M.Item> {
-  readonly items :DB.Items<I>
+export abstract class ToXStore {
+  readonly items :DB.Items
   // TODO: revamp to be based on a backing map from id?
   @computed get itemStores () :ItemStore[] { return this._storesFor(this.items) }
-  abstract get partitions () :Partition[]
+  abstract get title () :string
+  get partitions () :Partition[] { return [{title: this.title, stores: this.itemStores}] }
 
   @observable doneYear :number|void = undefined
-  @observable doneItems :DB.Items<I>|void = undefined
+  @observable doneItems :DB.Items|void = undefined
   @computed get doneItemStores () :ItemStore[]|void {
     return this.doneItems ? this._storesFor(this.doneItems) : undefined
   }
@@ -143,7 +79,7 @@ export abstract class ToXStore<I extends M.Item> {
 
   @observable newItem :string = ""
 
-  constructor (readonly coll :DB.ItemCollection<I>) {
+  constructor (readonly coll :DB.ItemCollection) {
     this.items = coll.items()
     this.setDoneYear(new Date().getFullYear())
   }
@@ -168,7 +104,7 @@ export abstract class ToXStore<I extends M.Item> {
       const tags :string[] = []
       text = popTags(text, tags)
       const data = this.newItemData(text)
-      data.tags = tags
+      if (tags.length > 0) data.tags = tags
       this.coll.create(data)
     } catch (error) {
       console.warn(`Failed to create item (text: ${text})`)
@@ -183,60 +119,111 @@ export abstract class ToXStore<I extends M.Item> {
     this.doneItems && this.doneItems.close()
   }
 
-  protected _storesFor (items :DB.Items<I>) :ItemStore[] {
+  importLegacy (text :string) {
+    const data = JSON.parse(text)
+    for (let {when, meta, archived, text} of data) {
+      if ((meta === "done=t") !== archived) {
+        console.log(`meta / archived mismatch? ${meta} // ${archived}`)
+      }
+      this.coll.create(this.legacyItemData(text, new Date(when), archived))
+    }
+  }
+
+  protected legacyItemData (text :string, when :Date, done :boolean) :{[field :string]: any} {
+    const tags :string[] = []
+    text = popTags(text, tags)
+    const data = this.newItemData(text)
+    if (tags.length > 0) data.tags = tags
+    data.created = when
+    if (done) data.completed = U.toStamp(when)
+    return data
+  }
+
+  protected _storesFor (items :DB.Items) :ItemStore[] {
     let stores :ItemStore[] = []
     for (let item of items.items) {
-      stores.push(this.newStore(item))
+      stores.push(new ItemStore(item))
     }
     return stores
   }
 
-  protected abstract newStore (item :I) :ItemStore
   protected abstract newItemData (text :string) :{[field :string]: any}
 }
 
-export abstract class ToLongXStore<I extends M.Protracted> extends ToXStore<I> {
+export abstract class ToLongXStore extends ToXStore {
 
-  abstract get title () :string
   abstract get startedTitle () :string
 
   get partitions () :Partition[] {
     const stores = this.itemStores
-    const pending = (store :ItemStore) => (store.item as M.Protracted).started === undefined
+    const pending = (store :ItemStore) => (store.item as M.Protracted).started.value === undefined
     const parts = [{title: this.title, stores: stores.filter(pending)}]
     const started = stores.filter(store => !pending(store))
     if (started.length > 0) parts.unshift({title: this.startedTitle, stores: started})
     return parts
   }
+
+  protected legacyItemData (text :string, when :Date, done :boolean) :{[field :string]: any} {
+    const data = super.legacyItemData(text, when, done)
+    if (data.completed) data.started = data.completed
+    return data
+  }
 }
 
-export class ToBuildStore extends ToLongXStore<M.Build> {
-
+export class ToBuildStore extends ToLongXStore {
   get title () :string { return "To Build" }
   get startedTitle () :string { return "Building" }
   get doneTitle () :string { return "Built" }
-
   constructor (db :DB.DB) { super(db.build) }
-
-  protected newStore (item :M.Build) { return new BuildStore(item) }
   protected newItemData (text :string) { return {text} }
 }
 
-export class ToReadStore extends ToLongXStore<M.Read> {
-
+export class ToReadStore extends ToLongXStore {
   get title () :string { return "To Read" }
   get startedTitle () :string { return "Reading" }
   get doneTitle () :string { return "Read" }
-
   constructor (db :DB.DB) { super(db.read) }
 
-  protected newStore (item :M.Read) { return new ReadStore(item) }
   protected newItemData (text :string) {
     const dashIdx = text.indexOf(" - ")
-    if (dashIdx < 0) return {title: text}
+    if (dashIdx < 0) return {title: text, type: "book"}
     const [title, author] = text.split(" - ")
     return {title, author, type: "book"}
   }
+}
+
+export class ToWatchStore extends ToXStore {
+  get title () :string { return "To See" }
+  get doneTitle () :string { return "Seen" }
+  constructor (db :DB.DB) { super(db.watch) }
+  protected newItemData (text :string) {
+    const dashIdx = text.indexOf(" - ")
+    if (dashIdx < 0) return {title: text, type: "film"}
+    const [title, director] = text.split(" - ")
+    return {title, director, type: "film"}
+  }
+}
+
+export class ToHearStore extends ToXStore {
+  get title () :string { return "To Hear" }
+  get doneTitle () :string { return "Heard" }
+  constructor (db :DB.DB) { super(db.hear) }
+  protected newItemData (text :string) { return {title: text, type: "song"} }
+}
+
+export class ToPlayStore extends ToLongXStore {
+  get title () :string { return "To Play" }
+  get startedTitle () :string { return "Playing" }
+  get doneTitle () :string { return "Play" }
+  constructor (db :DB.DB) { super(db.play) }
+  protected newItemData (text :string) { return {title: text, platform: "pc"} }
+}
+
+export class ToDineStore extends ToXStore {
+  get title () :string { return "To Dine" }
+  get doneTitle () :string { return "Dined" }
+  constructor (db :DB.DB) { super(db.dine) }
+  protected newItemData (text :string) { return {name: text} }
 }
 
 //
@@ -349,17 +336,59 @@ export class JournumStore {
 }
 
 //
+// View models for bulk item editing
+
+export class BulkStore {
+  @observable type = M.ItemType.READ
+  @observable legacyData :string = ""
+
+  constructor (readonly db :DB.DB, readonly stores :Stores) {}
+
+  get items () :DB.Items {
+    const items = this._items
+    if (items !== null && this.type === this._itemsType) return items
+    if (items) items.close()
+    this._itemsType = this.type
+    return this._items = this.db.coll(this.type).allItems()
+  }
+  private _itemsType :M.ItemType|null = null
+  private _items :DB.Items|null = null
+}
+
+//
 // View models for the top-level app
 
 export class Stores {
   journal :JournumStore
   build   :ToBuildStore
   read    :ToReadStore
+  watch   :ToWatchStore
+  hear    :ToHearStore
+  play    :ToPlayStore
+  dine    :ToDineStore
+  bulk    :BulkStore
 
   constructor (db :DB.DB) {
     this.journal = new JournumStore(db, new Date())
     this.build = new ToBuildStore(db)
     this.read = new ToReadStore(db)
+    this.watch = new ToWatchStore(db)
+    this.hear = new ToHearStore(db)
+    this.play = new ToPlayStore(db)
+    this.dine = new ToDineStore(db)
+    this.bulk = new BulkStore(db, this)
+  }
+
+  storeFor (type :M.ItemType) {
+    switch (type) {
+    case M.ItemType.BUILD: return this.build
+    case  M.ItemType.READ: return this.read
+    case M.ItemType.WATCH: return this.watch
+    case  M.ItemType.HEAR: return this.hear
+    case  M.ItemType.PLAY: return this.play
+    case  M.ItemType.DINE: return this.dine
+    default: throw new Error(`Unknown type: ${type}`)
+    }
   }
 
   close () {
@@ -368,12 +397,12 @@ export class Stores {
   }
 }
 
-export enum Tab { JOURNAL, BUILD, READ, SEE, LISTEN, PLAY, EAT, DO }
+export enum Tab { JOURNAL, BUILD, READ, WATCH, HEAR, PLAY, DINE, DO, BULK }
 
 export class AppStore {
   readonly db = new DB.DB()
   @observable user :firebase.User|null = null
-  @observable mode = Tab.READ // Tab.JOURNAL
+  @observable mode = Tab.BULK // Tab.JOURNAL
   // this can't be a @computed because of MobX tracking depends through a constructor into the
   // constructed object itself which is idiotic, but yay for magic
   stores :Stores|null = null

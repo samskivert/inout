@@ -6,6 +6,7 @@ import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth'
 
 import * as Icons from "./icons"
 import * as UI from "./ui"
+import * as M from "./model"
 import * as S from "./stores"
 import * as V from "./views"
 import { menuButton } from "./util"
@@ -90,6 +91,11 @@ export class AppViewRaw extends React.Component<AVProps> {
         {menuButton("journal", <Icons.CalendarToday />, () => store.mode = S.Tab.JOURNAL)}
         {menuButton("build", <Icons.Build />, () => store.mode = S.Tab.BUILD)}
         {menuButton("read", <Icons.Book />, () => store.mode = S.Tab.READ)}
+        {menuButton("watch", Icons.tv, () => store.mode = S.Tab.WATCH)}
+        {menuButton("hear", Icons.music, () => store.mode = S.Tab.HEAR)}
+        {menuButton("play", Icons.play, () => store.mode = S.Tab.PLAY)}
+        {menuButton("dine", Icons.food, () => store.mode = S.Tab.DINE)}
+        {menuButton("bulk", Icons.bulk, () => store.mode = S.Tab.BULK)}
         <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
         <UI.IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
           <Icons.CloudOff /></UI.IconButton>
@@ -113,8 +119,13 @@ export class AppViewRaw extends React.Component<AVProps> {
     const mode = this.props.store.mode
     switch (mode) {
     case S.Tab.JOURNAL: return <V.JournumView store={stores.journal} />
-    case   S.Tab.BUILD: return <V.ToBuildView store={stores.build} />
-    case    S.Tab.READ: return <V.ToReadView store={stores.read} />
+    case   S.Tab.BUILD: return <V.ToBuildView store={stores.storeFor(M.ItemType.BUILD)} />
+    case    S.Tab.READ: return <V.ToReadView store={stores.storeFor(M.ItemType.READ)} />
+    case   S.Tab.WATCH: return <V.ToWatchView store={stores.storeFor(M.ItemType.WATCH)} />
+    case    S.Tab.HEAR: return <V.ToHearView store={stores.storeFor(M.ItemType.HEAR)} />
+    case    S.Tab.PLAY: return <V.ToPlayView store={stores.storeFor(M.ItemType.PLAY)} />
+    case    S.Tab.DINE: return <V.ToDineView store={stores.storeFor(M.ItemType.DINE)} />
+    case    S.Tab.BULK: return <V.BulkView store={stores.bulk} />
     default:            return <div>TODO: handle {mode}</div>
     }
   }
