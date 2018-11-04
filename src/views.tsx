@@ -76,25 +76,6 @@ function boolEditor (label :string, prop :IObservableValue<boolean>, cells :UI.G
   </UI.Grid>
 }
 
-const fbStyles = (theme :UI.Theme) => UI.createStyles({
-  bar: {
-    top: 'auto',
-    bottom: 0,
-  },
-})
-
-class FooterBarRaw extends React.Component<UI.WithStyles<typeof fbStyles>> {
-  render () {
-    const classes = this.props.classes
-    return <UI.AppBar position="fixed" color="secondary" className={classes.bar}>
-        <UI.Toolbar>
-          {this.props.children}
-        </UI.Toolbar>
-      </UI.AppBar>
-  }
-}
-const FooterBar = UI.withStyles(fbStyles)(FooterBarRaw)
-
 function itemTypeSelect (read :() => M.ItemType, update :(type :M.ItemType) => void) {
   const menuItem = (type :M.ItemType) =>
     <UI.MenuItem key={type} value={type}>{itemUI(type).doneTitle}</UI.MenuItem>
@@ -142,7 +123,7 @@ class EntryView extends React.Component<{store :S.EntryStore}> {
   }
 }
 
-const jvStyles = (theme :UI.Theme) => UI.createStyles({
+const jvStyles = UI.createStyles({
   grow: {
     flexGrow: 1,
   },
@@ -169,38 +150,44 @@ class JournumViewRaw extends React.Component<JVProps> {
 
   render () {
     const {store, classes} = this.props, journum = store.current, entries = store.entries
-    const haveJournum = journum !== undefined
-    return <div>
-      <UI.List>
-        <UI.ListItem disableGutters>
-          {U.menuButton("today", <Icons.Today />, () => store.goToday())}
-          {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollDate(-1))}
-          <UI.Typography variant="h6" color="inherit">
-            {U.formatDate(store.currentDate)}
-          </UI.Typography>
-          {U.menuButton("next", <Icons.ArrowRight />, () => store.rollDate(+1))}
-          {store.pickingDate ?
-          <UI.TextField autoFocus color="inherit" type="date" value={store.pickingDate}
-            onChange={ev => store.updatePick(ev.currentTarget.value)}
-            onBlur={ev => store.commitPick()} /> :
-          U.menuButton("pick", <Icons.CalendarToday />, () => store.startPick())}
-          <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
-        </UI.ListItem>
-        {journum === undefined ? textListItem("Loading...") :
-         entries.length === 0 ? textListItem("No entries...") :
-         entries.map((es, ii) => <EntryView key={ii} store={es} />)}
-      </UI.List>
-      <FooterBar>
-        <UI.Typography style={{marginLeft: 8, marginRight: 8}} variant="h6" color="inherit">
-          Add:</UI.Typography>
-        <UI.Input type="text" className={classes.addText} placeholder="Journal Entry"
-                  value={store.newEntry}
-                  onChange={ev => store.newEntry = ev.currentTarget.value}
-                  onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
-        <UI.IconButton color="inherit" aria-label="Menu" disabled={!haveJournum}
-          onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
-      </FooterBar>
-    </div>
+    return <UI.List>
+      <UI.ListItem disableGutters>
+        {U.menuButton("today", <Icons.Today />, () => store.goToday())}
+        {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollDate(-1))}
+        <UI.Typography variant="h6" color="inherit">
+          {U.formatDate(store.currentDate)}
+        </UI.Typography>
+        {U.menuButton("next", <Icons.ArrowRight />, () => store.rollDate(+1))}
+        {store.pickingDate ?
+        <UI.TextField autoFocus color="inherit" type="date" value={store.pickingDate}
+          onChange={ev => store.updatePick(ev.currentTarget.value)}
+          onBlur={ev => store.commitPick()} /> :
+        U.menuButton("pick", <Icons.CalendarToday />, () => store.startPick())}
+        <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
+      </UI.ListItem>
+      {journum === undefined ? textListItem("Loading...") :
+       entries.length === 0 ? textListItem("No entries...") :
+       entries.map((es, ii) => <EntryView key={ii} store={es} />)}
+    </UI.List>
+  }
+}
+export const JournumView = UI.withStyles(jvStyles)(JournumViewRaw)
+
+@observer
+class JournumFooterRaw extends React.Component<JVProps> {
+
+  render () {
+    const {store, classes} = this.props,  haveJournum = store.current !== undefined
+    return <UI.Toolbar>
+      <UI.Typography style={{marginLeft: 8, marginRight: 8}} variant="h6" color="inherit">
+        Add:</UI.Typography>
+      <UI.Input type="text" className={classes.addText} placeholder="Journal Entry"
+                value={store.newEntry}
+                onChange={ev => store.newEntry = ev.currentTarget.value}
+                onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
+      <UI.IconButton color="inherit" aria-label="Menu" disabled={!haveJournum}
+        onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
+    </UI.Toolbar>
   }
 
   addNewEntry () {
@@ -210,7 +197,7 @@ class JournumViewRaw extends React.Component<JVProps> {
     store.newEntry = ""
   }
 }
-export const JournumView = UI.withStyles(jvStyles)(JournumViewRaw)
+export const JournumFooter = UI.withStyles(jvStyles)(JournumFooterRaw)
 
 // ---------
 // Item view
@@ -666,15 +653,12 @@ export function itemUI (type :M.ItemType) :ItemUI {
   }
 }
 
-const ivStyles = (theme :UI.Theme) => UI.createStyles({
+const ivStyles = UI.createStyles({
   grow: {
     flexGrow: 1,
   },
   spacing: {
     unit: 4,
-  },
-  content: {
-    paddingBottom: theme.mixins.toolbar.minHeight,
   },
   addText: {
     flexGrow: 1,
@@ -713,18 +697,27 @@ class ItemsViewRaw extends React.Component<IVProps> {
     }
     entries.push(listTitle(`Recently ${ui.doneTitle}`))
     for (let es of store.recentStores) entries.push(ui.itemView(es))
+    return <UI.List>{entries}</UI.List>
+  }
+}
+export const ItemsView = UI.withStyles(ivStyles)(ItemsViewRaw)
+
+@observer
+class ItemsFooterRaw extends React.Component<IVProps> {
+
+  render () {
+    const {store, classes, ui} = this.props
     return <div>
-      <UI.List className={classes.content}>{entries}</UI.List>
-      <FooterBar>
+      <UI.Toolbar>
         <UI.Typography style={{marginLeft: 8, marginRight: 8}} variant="h6" color="inherit">
           Add:</UI.Typography>
         <UI.Input type="text" className={classes.addText} placeholder={ui.addPlaceholder}
-                  value={store.newItem}
+                  value={store.newItem} disabled={!store}
                   onChange={ev => store.newItem = ev.currentTarget.value}
                   onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
-        <UI.IconButton color="inherit" aria-label="Menu"
+        <UI.IconButton color="inherit" aria-label="Menu" disabled={!store}
           onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
-      </FooterBar>
+      </UI.Toolbar>
     </div>
   }
 
@@ -735,89 +728,82 @@ class ItemsViewRaw extends React.Component<IVProps> {
     store.newItem = ""
   }
 }
-export const ItemsView = UI.withStyles(ivStyles)(ItemsViewRaw)
+export const ItemsFooter = UI.withStyles(ivStyles)(ItemsFooterRaw)
 
 // -----------------
 // Item history view
 
-const ihvStyles = UI.createStyles({
-  grow: {
-    flexGrow: 1,
-  },
-})
-
-interface IHVProps extends UI.WithStyles<typeof ihvStyles> {
-  store :S.ItemHistoryStore
-}
-
 @observer
-class ItemHistoryViewRaw extends React.Component<IHVProps> {
+export class ItemHistoryView extends React.Component<{store :S.ItemHistoryStore}> {
 
   render () {
-    const {store, classes} = this.props
-    const ui = itemUI(store.type)
+    const {store} = this.props, ui = itemUI(store.type)
     return (
-      <div>
-        <UI.List>
-          <UI.ListItem disableGutters>
-            <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
-            <UI.Typography className={classes.grow} variant="h6" color="inherit">
-              {ui.doneTitle} - {store.year}
-            </UI.Typography>
-          </UI.ListItem>
-          {store.itemStores.map(store => ui.itemView(store))}
-          {store.itemStores.length == 0 ? <UI.ListItem><UI.Typography variant="subtitle1" />(empty)</UI.ListItem> : undefined}
-        </UI.List>
-        <FooterBar>
+      <UI.List>
+        <UI.ListItem disableGutters>
           <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
-          {itemTypeSelect(() => store.type, type => store.type = type)}
-          {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollYear(-1))}
-          <UI.Typography variant="h6" color="inherit">{String(store.year)}</UI.Typography>
-          {U.menuButton("next", <Icons.ArrowRight />, () => store.rollYear(1))}
-        </FooterBar>
-      </div>
+          <UI.Typography variant="h6" color="inherit">
+            {ui.doneTitle} - {store.year}
+          </UI.Typography>
+        </UI.ListItem>
+        {store.itemStores.map(store => ui.itemView(store))}
+        {store.itemStores.length == 0 ? <UI.ListItem><UI.Typography variant="subtitle1" />(empty)</UI.ListItem> : undefined}
+      </UI.List>
     )
   }
 }
-export const ItemHistoryView = UI.withStyles(ihvStyles)(ItemHistoryViewRaw)
+
+@observer
+export class ItemHistoryFooter extends React.Component<{store :S.ItemHistoryStore}> {
+
+  render () {
+    const {store} = this.props, ui = itemUI(store.type)
+    return (
+      <UI.Toolbar>
+        <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
+        {itemTypeSelect(() => store.type, type => store.type = type)}
+        {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollYear(-1))}
+        <UI.Typography variant="h6" color="inherit">{String(store.year)}</UI.Typography>
+        {U.menuButton("next", <Icons.ArrowRight />, () => store.rollYear(1))}
+      </UI.Toolbar>
+    )
+  }
+}
 
 // --------------------
 // Bulk viewing/editing
 
-const bvStyles = UI.createStyles({
-  grow: {
-    flexGrow: 1,
-  },
-})
-
-interface BVProps extends UI.WithStyles<typeof bvStyles> {
-  store :S.BulkStore
+@observer
+export class BulkView extends React.Component<{store :S.BulkStore}> {
+  render () {
+    const {store} = this.props, ui = itemUI(store.type)
+    return<UI.Table padding="none">
+      <UI.TableBody>{store.items.items.map(ui.bulkEditor)}</UI.TableBody>
+    </UI.Table>
+  }
 }
 
 @observer
-class BulkViewRaw extends React.Component<BVProps> {
+export class BulkFooter extends React.Component<{store :S.BulkStore}> {
   render () {
-    const {store} = this.props
-    const itemStore = store.stores.storeFor(store.type)
+    const {store} = this.props, itemStore = store.stores.storeFor(store.type)
     const ui = itemUI(store.type)
     return <div>
-      <UI.Table padding="none">
-        <UI.TableBody>{store.items.items.map(ui.bulkEditor)}</UI.TableBody>
-      </UI.Table>
-      <FooterBar>
+      <UI.Toolbar>
         <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
         {itemTypeSelect(() => store.type, type => store.type = type)}
-        <UI.TextField fullWidth value={store.legacyData}
+        <UI.Typography style={{marginLeft: 20}} variant="h6" color="inherit">
+          Bulk import:</UI.Typography>
+        <UI.TextField value={store.legacyData}
                       onChange={ev => store.legacyData = ev.currentTarget.value} />
         <UI.Button color="inherit" onClick={ev => {
           itemStore.importLegacy(store.legacyData)
           store.legacyData = ""
         }}>Submit</UI.Button>
-      </FooterBar>
+      </UI.Toolbar>
     </div>
   }
 }
-export const BulkView = UI.withStyles(ihvStyles)(BulkViewRaw)
 
 function tableCell (contents :JSX.Element, width :string = "") :JSX.Element {
   const styles :any = {paddingLeft: 5, paddingRight: 5}

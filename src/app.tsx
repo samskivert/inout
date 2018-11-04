@@ -63,36 +63,49 @@ class LoginViewRaw extends React.Component<UI.WithStyles<typeof lvStyles>> {
 }
 const LoginView = UI.withStyles(lvStyles)(LoginViewRaw)
 
-function itemsView (stores :S.Stores, type :M.ItemType) :JSX.Element {
-  return <V.ItemsView store={stores.storeFor(type)} ui={V.itemUI(type)} />
+function itemsView (stores :S.Stores, type :M.ItemType) :[JSX.Element, JSX.Element] {
+  const store = stores.storeFor(type), ui = V.itemUI(type)
+  return [<V.ItemsView store={store} ui={ui} />, <V.ItemsFooter store={store} ui={ui} />]
 }
 
-function contentView (tab :S.Tab, stores :S.Stores) :JSX.Element {
+function contentView (tab :S.Tab, stores :S.Stores) :[JSX.Element, JSX.Element] {
   switch (tab) {
-  case S.Tab.JOURNAL: return <V.JournumView store={stores.journal} />
+  case S.Tab.JOURNAL: return [<V.JournumView store={stores.journal} />,
+                              <V.JournumFooter store={stores.journal} />]
+  case S.Tab.HISTORY: return [<V.ItemHistoryView store={stores.history} />,
+                              <V.ItemHistoryFooter store={stores.history} />]
+  case    S.Tab.BULK: return [<V.BulkView store={stores.bulk} />,
+                              <V.BulkFooter store={stores.bulk} />]
   case    S.Tab.READ: return itemsView(stores, M.ItemType.READ)
   case   S.Tab.WATCH: return itemsView(stores, M.ItemType.WATCH)
   case    S.Tab.HEAR: return itemsView(stores, M.ItemType.HEAR)
   case    S.Tab.PLAY: return itemsView(stores, M.ItemType.PLAY)
   case    S.Tab.DINE: return itemsView(stores, M.ItemType.DINE)
   case   S.Tab.BUILD: return itemsView(stores, M.ItemType.BUILD)
-  case S.Tab.HISTORY: return <V.ItemHistoryView store={stores.history} />
-  case    S.Tab.BULK: return <V.BulkView store={stores.bulk} />
-  default:            return <div>TODO: handle {tab}</div>
+  default:            return [<div>TODO: handle {tab}</div>, <div>TODO</div>]
   }
 }
 
 const avStyles = (theme :UI.Theme) => UI.createStyles({
   root: {
+    display: "flex",
+    flexDirection: "column",
     flexGrow: 1,
+    height: "100%",
+
   },
   grow: {
     flexGrow: 1,
   },
   content: {
-    marginTop: theme.mixins.toolbar.minHeight,
-    paddingBottom: theme.mixins.toolbar.minHeight,
-  }
+    overflowY: "scroll",
+    flex: "1 1 auto",
+    "-webkit-overflow-scrolling": "touch",
+  },
+  appBar: {
+    flex: "0 0 auto",
+    position: "inherit",
+  },
 })
 
 interface AVProps extends UI.WithStyles<typeof avStyles>, UI.WithWidth {
@@ -105,36 +118,49 @@ export class AppViewRaw extends React.Component<AVProps> {
   render () {
     // we have to check user to ensure an observable depend, meh
     const {classes, store, width} = this.props, {user, stores} = store
-
-    const toolbar = (user && stores) ? (
-      <UI.Toolbar>
-        <UI.Typography style={{marginRight: 5}} variant="h6" color="inherit">I/O</UI.Typography>
-        {menuButton("journal", Icons.journal, () => store.tab = S.Tab.JOURNAL)}
-        {menuButton("read", Icons.book, () => store.tab = S.Tab.READ)}
-        {menuButton("watch", Icons.movie, () => store.tab = S.Tab.WATCH)}
-        {menuButton("hear", Icons.music, () => store.tab = S.Tab.HEAR)}
-        {menuButton("play", Icons.play, () => store.tab = S.Tab.PLAY)}
-        {menuButton("dine", Icons.food, () => store.tab = S.Tab.DINE)}
-        {menuButton("build", Icons.build, () => store.tab = S.Tab.BUILD)}
-        {menuButton("history", Icons.history, () => store.tab = S.Tab.HISTORY)}
-        {width === "xs" ? undefined : menuButton("bulk", Icons.bulk, () => store.tab = S.Tab.BULK)}
-        <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
-        <UI.IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
-          <Icons.CloudOff /></UI.IconButton>
-      </UI.Toolbar>
-    ) : (
-      <UI.Toolbar>
-        <UI.Typography variant="h6" color="inherit">Input/Output</UI.Typography>
-      </UI.Toolbar>
+    if (!user || !stores) return (
+      <div className={classes.root}>
+        <UI.AppBar position="fixed">
+          <UI.Toolbar>
+            <UI.Typography variant="h6" color="inherit">Input/Output</UI.Typography>
+          </UI.Toolbar>
+        </UI.AppBar>
+        <main className={classes.content}><LoginView /></main>
+      </div>
     )
-    const content = (user && stores) ? contentView(store.tab, stores) : <LoginView />
 
+    const [content, footer] = contentView(store.tab, stores)
     return (
       <div className={classes.root}>
-        <UI.AppBar position="fixed">{toolbar}</UI.AppBar>
-        <div className={classes.content}>{content}</div>
+        <UI.AppBar className={classes.appBar}>
+          <UI.Toolbar>
+            <UI.Typography style={{marginRight: 5}} variant="h6" color="inherit">I/O</UI.Typography>
+            {menuButton("journal", Icons.journal, () => store.tab = S.Tab.JOURNAL)}
+            {menuButton("read", Icons.book, () => store.tab = S.Tab.READ)}
+            {menuButton("watch", Icons.movie, () => store.tab = S.Tab.WATCH)}
+            {menuButton("hear", Icons.music, () => store.tab = S.Tab.HEAR)}
+            {menuButton("play", Icons.play, () => store.tab = S.Tab.PLAY)}
+            {menuButton("dine", Icons.food, () => store.tab = S.Tab.DINE)}
+            {menuButton("build", Icons.build, () => store.tab = S.Tab.BUILD)}
+            {menuButton("history", Icons.history, () => store.tab = S.Tab.HISTORY)}
+            {width === "xs" ? undefined : menuButton("bulk", Icons.bulk, () => store.tab = S.Tab.BULK)}
+            <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
+            <UI.IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
+              <Icons.CloudOff /></UI.IconButton>
+          </UI.Toolbar>
+        </UI.AppBar>
+        <main className={classes.content}>{content}</main>
+        <UI.AppBar position="fixed" color="secondary" className={classes.appBar}>
+          {footer}
+        </UI.AppBar>
       </div>
     )
   }
 }
 export const AppView = UI.withStyles(avStyles)(UI.withWidth()(AppViewRaw))
+
+        // <UI.Grid container>
+        // <UI.Grid item xs={4}>{content}</UI.Grid>
+        // {stores && (<UI.Grid item xs={4}>{contentView(S.Tab.READ, stores)}</UI.Grid>)}
+        // {stores && (<UI.Grid item xs={4}>{contentView(S.Tab.BUILD, stores)}</UI.Grid>)}
+        // </UI.Grid>
