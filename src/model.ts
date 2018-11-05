@@ -112,6 +112,10 @@ export enum ItemType {
   READ = "read", WATCH = "watch", HEAR = "hear", PLAY = "play",
   DINE ="dine", BUILD = "build"/*, DO = "do"*/ }
 
+function checkMatch (text :string|void, seek :string) {
+  return text && text.toLowerCase().includes(seek)
+}
+
 export abstract class Item extends Doc {
   protected readonly props :Prop<any>[] = []
 
@@ -125,6 +129,11 @@ export abstract class Item extends Doc {
   constructor (ref :Ref, data :Data) {
     super(ref, data)
     this.created = data.created
+  }
+
+  matches (seek :string) {
+    return (this.tags.value.some(tag => tag.toLowerCase() === seek) ||
+            checkMatch(this.link.value, seek))
   }
 
   startEdit () {
@@ -160,6 +169,10 @@ export abstract class Protracted extends Item {
 
 export class Build extends Protracted {
   readonly text = this.newProp("text", "")
+
+  matches (text :string) {
+    return super.matches(text) || checkMatch(this.text.value, text)
+  }
 }
 
 export class Do extends Item {
@@ -171,6 +184,10 @@ type Rating = "none" | "bad" | "meh" | "ok" | "good" | "great"
 export abstract class Consume extends Item {
   readonly rating = this.newProp<Rating>("rating", "none")
   readonly recommender = this.newProp<string|void>("recommender", undefined)
+
+  matches (text :string) {
+    return super.matches(text) || checkMatch(this.recommender.value, text)
+  }
 }
 
 export type ReadType = "article" | "book" | "paper"
@@ -181,6 +198,13 @@ export class Read extends Protracted {
   // have to repeat consume as we cannot multiply inherit from protected & consume
   readonly rating = this.newProp<Rating>("rating", "none")
   readonly recommender = this.newProp<string|void>("recommender", undefined)
+
+  matches (text :string) {
+    return (super.matches(text) ||
+            checkMatch(this.title.value, text) ||
+            checkMatch(this.author.value, text) ||
+            checkMatch(this.recommender.value, text))
+  }
 }
 
 export type WatchType = "show" | "film" | "video" | "other"
@@ -188,6 +212,12 @@ export class Watch extends Consume {
   readonly title = this.newProp("title", "")
   readonly director = this.newProp<string|void>("director", undefined)
   readonly type = this.newProp<WatchType>("type", "film")
+
+  matches (text :string) {
+    return (super.matches(text) ||
+            checkMatch(this.title.value, text) ||
+            checkMatch(this.director.value, text))
+  }
 }
 
 export type HearType = "song" | "album" | "other"
@@ -195,6 +225,12 @@ export class Hear extends Consume {
   readonly title = this.newProp("title", "")
   readonly artist = this.newProp<string|void>("artist", undefined)
   readonly type = this.newProp<HearType>("type", "song")
+
+  matches (text :string) {
+    return (super.matches(text) ||
+            checkMatch(this.title.value, text) ||
+            checkMatch(this.artist.value, text))
+  }
 }
 
 export type Platform = "pc" | "mobile" | "switch" | "ps4" | "xbox" | "3ds" | "vita" |
@@ -206,11 +242,21 @@ export class Play extends Protracted {
   // have to repeat consume as we cannot multiply inherit from protected & consume
   readonly rating = this.newProp<Rating>("rating", "none")
   readonly recommender = this.newProp<string|void>("recommender", undefined)
+
+  matches (text :string) {
+    return (super.matches(text) ||
+            checkMatch(this.title.value, text) ||
+            checkMatch(this.recommender.value, text))
+  }
 }
 
 export class Dine extends Consume {
   readonly name = this.newProp("name", "")
   readonly location = this.newProp<string|void>("location", undefined)
+
+  matches (text :string) {
+    return super.matches(text) || checkMatch(this.name.value, text)
+  }
 }
 
 // Output model

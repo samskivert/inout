@@ -38,15 +38,9 @@ export class Items {
   }
 }
 
-const ByCreated = (a :M.Item, b :M.Item) => a.created.seconds - b.created.seconds
+const ByCreated = (a :M.Item, b :M.Item) => b.created.seconds - a.created.seconds
 const ByCompleted = (a :M.Item, b :M.Item) =>
   (b.completed.value || "").localeCompare(a.completed.value || "")
-const ByHistory = (a :M.Item, b :M.Item) => {
-  if (a.completed.value && b.completed.value) return ByCompleted(a, b)
-  if (a.completed.value) return 1
-  if (b.completed.value) return -1
-  return ByCreated(a, b)
-}
 
 export class ItemCollection {
 
@@ -65,15 +59,15 @@ export class ItemCollection {
     return new Items(query, this.decoder, sorter)
   }
 
-  allItems () :Items {
-    return new Items(this.col, this.decoder, ByHistory)
+  completed () :Items {
+    return new Items(this.completedQuery, this.decoder, ByCompleted)
   }
-
   recentCompleted () :Items {
-    const query = this.col.where("completed", ">=", `2000-01-01`)
-                          .orderBy("completed", "desc").limit(5)
-    return new Items(query, this.decoder, ByCompleted)
+    return new Items(this.completedQuery.limit(5), this.decoder, ByCompleted)
   }
+  private get completedQuery () {
+    console.log(`Loading completed: ${this.name}...`)
+    return this.col.where("completed", ">=", "1900-01-01").orderBy("completed", "desc") }
 
   async create (data :Data) :Promise<M.Item> {
     if (!data.created) data.created = firebase.firestore.FieldValue.serverTimestamp()

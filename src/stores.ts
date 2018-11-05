@@ -1,4 +1,4 @@
-import { computed, observable, observe } from "mobx"
+import { computed, observable } from "mobx"
 import * as firebase from "firebase"
 import * as DB from "./db"
 import * as M from "./model"
@@ -180,20 +180,41 @@ type Partition = {
   stores :ItemStore[]
 }
 
-export abstract class ToXStore {
+type LegacyData = {[field :string]: string}
+type Data = {[field :string]: any}
+
+export type ItemsMode = "current" | "history" | "bulk"
+
+export abstract class ItemsStore {
+  @observable mode :ItemsMode = "current"
+  @observable newItem = ""
+  @observable histFilterPend = ""
+  @observable histFilter = ""
+
   readonly items :DB.Items
-  readonly recentItems :DB.Items
+  readonly compItems :DB.Items
+
   // TODO: revamp to be based on a backing map from id?
   @computed get itemStores () :ItemStore[] { return storesFor(this.items) }
-  @computed get recentStores () :ItemStore[] { return storesFor(this.recentItems) }
+  @computed get recentStores () :ItemStore[] { return storesFor(this.compItems) }
+
   abstract get title () :string
   get partitions () :Partition[] { return [{title: this.title, stores: this.itemStores}] }
 
-  @observable newItem :string = ""
+  get historyStores () :ItemStore[] { return storesFor(this.history) }
+  get history () :DB.Items {
+    if (this._history === null) this._history = this.coll.completed()
+    return this._history
+  }
+  private _history :DB.Items|null = null
 
   constructor (readonly coll :DB.ItemCollection) {
     this.items = coll.items()
-    this.recentItems = coll.recentCompleted()
+    this.compItems = coll.recentCompleted()
+  }
+
+  applyHistFilter () {
+    this.histFilter = this.histFilterPend
   }
 
   async addItem (text :string) {
@@ -213,33 +234,30 @@ export abstract class ToXStore {
   // TODO: someone needs to call close!
   close () {
     this.items.close()
-    this.recentItems.close()
+    this.compItems.close()
+    this._history && this._history.close()
   }
 
   importLegacy (text :string) {
-    const data = JSON.parse(text)
-    for (let {when, meta, archived, text} of data) {
-      if ((meta === "done=t") !== archived) {
-        console.log(`meta / archived mismatch? ${meta} // ${archived}`)
-      }
-      this.coll.create(this.legacyItemData(text, new Date(when), archived))
-    }
+    for (let data of JSON.parse(text)) this.coll.create(this.legacyItemData(data))
   }
 
-  protected legacyItemData (text :string, when :Date, done :boolean) :{[field :string]: any} {
+  protected legacyItemData (ldata :LegacyData) :Data {
     const tags :string[] = []
-    text = popTags(text, tags)
+    let text = popTags(ldata.text, tags)
     const data = this.newItemData(text)
     if (tags.length > 0) data.tags = tags
-    data.created = when
-    if (done) data.completed = U.toStamp(when)
+    if (ldata.link) data.link = ldata.link
+    if (ldata.rating) data.rating = ldata.rating
+    if (ldata.completed) data.completed = ldata.completed
+    data.created = ldata.completed ? new Date(ldata.completed) : new Date()
     return data
   }
 
-  protected abstract newItemData (text :string) :{[field :string]: any}
+  protected abstract newItemData (text :string) :Data
 }
 
-export abstract class ToLongXStore extends ToXStore {
+export abstract class ProtractedItemsStore extends ItemsStore {
 
   abstract get startedTitle () :string
 
@@ -252,21 +270,21 @@ export abstract class ToLongXStore extends ToXStore {
     return parts
   }
 
-  protected legacyItemData (text :string, when :Date, done :boolean) :{[field :string]: any} {
-    const data = super.legacyItemData(text, when, done)
+  protected legacyItemData (ldata :LegacyData) :Data {
+    const data = super.legacyItemData(ldata)
     if (data.completed) data.started = data.completed
     return data
   }
 }
 
-export class ToBuildStore extends ToLongXStore {
+export class ToBuildStore extends ProtractedItemsStore {
   get title () :string { return "To Build" }
   get startedTitle () :string { return "Building" }
   constructor (db :DB.DB) { super(db.build) }
   protected newItemData (text :string) { return {text} }
 }
 
-export class ToReadStore extends ToLongXStore {
+export class ToReadStore extends ProtractedItemsStore {
   get title () :string { return "To Read" }
   get startedTitle () :string { return "Reading" }
   constructor (db :DB.DB) { super(db.read) }
@@ -279,7 +297,7 @@ export class ToReadStore extends ToLongXStore {
   }
 }
 
-export class ToWatchStore extends ToXStore {
+export class ToWatchStore extends ItemsStore {
   get title () :string { return "To See" }
   constructor (db :DB.DB) { super(db.watch) }
   protected newItemData (text :string) {
@@ -290,50 +308,23 @@ export class ToWatchStore extends ToXStore {
   }
 }
 
-export class ToHearStore extends ToXStore {
+export class ToHearStore extends ItemsStore {
   get title () :string { return "To Hear" }
   constructor (db :DB.DB) { super(db.hear) }
   protected newItemData (text :string) { return {title: text, type: "song"} }
 }
 
-export class ToPlayStore extends ToLongXStore {
+export class ToPlayStore extends ProtractedItemsStore {
   get title () :string { return "To Play" }
   get startedTitle () :string { return "Playing" }
   constructor (db :DB.DB) { super(db.play) }
   protected newItemData (text :string) { return {title: text, platform: "pc"} }
 }
 
-export class ToDineStore extends ToXStore {
+export class ToDineStore extends ItemsStore {
   get title () :string { return "To Dine" }
   constructor (db :DB.DB) { super(db.dine) }
   protected newItemData (text :string) { return {name: text} }
-}
-
-//
-// Item history
-
-export class ItemHistoryStore {
-  @observable type = M.ItemType.READ
-  @observable year :number = new Date().getFullYear()
-
-  @computed get items () :DB.Items {
-    return this.db.coll(this.type).items(this.year)
-  }
-  @computed get itemStores () :ItemStore[] {
-    return storesFor(this.items)
-  }
-
-  constructor (readonly db :DB.DB) {
-    observe(this, "items", change => { change.oldValue && change.oldValue.close() })
-  }
-
-  async rollYear (delta :number) {
-    this.year = this.year + delta
-  }
-
-  close () {
-    this.items.close()
-  }
 }
 
 //
@@ -341,19 +332,31 @@ export class ItemHistoryStore {
 
 export class BulkStore {
   @observable type = M.ItemType.READ
+  @observable year :number|void = undefined
   @observable legacyData :string = ""
 
   constructor (readonly db :DB.DB, readonly stores :Stores) {}
 
   get items () :DB.Items {
     const items = this._items
-    if (items !== null && this.type === this._itemsType) return items
+    if (items !== null && this.type === this._itemsType && this.year === this._itemsYear) return items
     if (items) items.close()
     this._itemsType = this.type
-    return this._items = this.db.coll(this.type).allItems()
+    this._itemsYear = this.year
+    return this._items = this.db.coll(this.type).items(this.year)
   }
   private _itemsType :M.ItemType|null = null
+  private _itemsYear :number|void = undefined
   private _items :DB.Items|null = null
+
+  rollYear (delta :number) {
+    const thisYear = new Date().getFullYear()
+    if (delta < 0 && !this.year) this.year = thisYear
+    else {
+      const wantYear = (this.year || thisYear) + delta
+      this.year = wantYear > thisYear ? undefined : wantYear
+    }
+  }
 
   close () {
     this._items && this._items.close()
@@ -365,13 +368,11 @@ export class BulkStore {
 
 export class Stores {
   journal :JournumStore
-  items   :Map<M.ItemType, ToXStore> = new Map()
-  history :ItemHistoryStore
+  items   :Map<M.ItemType, ItemsStore> = new Map()
   bulk    :BulkStore
 
   constructor (readonly db :DB.DB) {
     this.journal = new JournumStore(db, new Date())
-    this.history = new ItemHistoryStore(db)
     this.bulk = new BulkStore(db, this)
   }
 
@@ -389,7 +390,7 @@ export class Stores {
     this.bulk.close()
   }
 
-  _createStore (type :M.ItemType) :ToXStore {
+  _createStore (type :M.ItemType) :ItemsStore {
     switch (type) {
     case  M.ItemType.READ: return  new ToReadStore(this.db)
     case M.ItemType.WATCH: return  new ToWatchStore(this.db)
@@ -402,7 +403,7 @@ export class Stores {
   }
 }
 
-export enum Tab { JOURNAL, READ, WATCH, HEAR, PLAY, DINE, BUILD/*, DO*/, HISTORY, BULK }
+export enum Tab { JOURNAL, READ, WATCH, HEAR, PLAY, DINE, BUILD/*, DO*/, BULK }
 
 export class AppStore {
   readonly db = new DB.DB()

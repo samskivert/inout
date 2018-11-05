@@ -182,7 +182,7 @@ class JournumFooterRaw extends React.Component<JVProps> {
       <UI.Typography style={{marginLeft: 8, marginRight: 8}} variant="h6" color="inherit">
         Add:</UI.Typography>
       <UI.Input type="text" className={classes.addText} placeholder="Journal Entry"
-                value={store.newEntry}
+                value={store.newEntry} disableUnderline={true}
                 onChange={ev => store.newEntry = ev.currentTarget.value}
                 onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
       <UI.IconButton color="inherit" aria-label="Menu" disabled={!haveJournum}
@@ -660,7 +660,14 @@ const ivStyles = UI.createStyles({
   spacing: {
     unit: 4,
   },
-  addText: {
+  white: {
+    color: "white"
+  },
+  whiteUnderlined: {
+    color: "white",
+    borderBottom: "1px solid white"
+  },
+  footText: {
     flexGrow: 1,
     color: "white",
     borderBottom: "1px solid white"
@@ -668,8 +675,22 @@ const ivStyles = UI.createStyles({
 })
 
 interface IVProps extends UI.WithStyles<typeof ivStyles> {
-  store :S.ToXStore
+  store :S.ItemsStore
   ui :ItemUI
+}
+
+type HistoryPartition = {year :string, stores :S.ItemStore[]}
+function partitionByYear (stores :S.ItemStore[]) :HistoryPartition[] {
+  const results :HistoryPartition[] = []
+  let current :HistoryPartition|void = undefined
+  for (let store of stores) {
+    const compYear = store.item.completed.value || ""
+    if (current === undefined || !compYear.startsWith(current.year)) {
+      results.push(current = {year: compYear.substring(0, 4), stores: []})
+    }
+    current.stores.push(store)
+  }
+  return results
 }
 
 @observer
@@ -677,26 +698,47 @@ class ItemsViewRaw extends React.Component<IVProps> {
 
   render () {
     const {store, classes, ui} = this.props
-    if (store.items.pending) return (
-      <UI.List>
-        <UI.ListItem><UI.ListItemText primary="Loading..." /></UI.ListItem>
-      </UI.List>
-    )
     function listTitle (title :string) {
       return <UI.ListItem disableGutters>
         <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
         <UI.Typography className={classes.grow} variant="h6" color="inherit">{title}</UI.Typography>
       </UI.ListItem>
     }
-
-    const parts = store.partitions
     const entries :JSX.Element[] = []
-    for (let part of parts) {
-      entries.push(listTitle(part.title))
-      for (let store of part.stores) entries.push(ui.itemView(store))
+    switch (store.mode) {
+    case "current":
+      if (store.items.pending) {
+        entries.push(listTitle(store.title))
+        entries.push(<UI.ListItem><UI.ListItemText primary="Loading..." /></UI.ListItem>)
+      } else {
+        const parts = store.partitions
+        for (let part of parts) {
+          entries.push(listTitle(part.title))
+          for (let store of part.stores) entries.push(ui.itemView(store))
+        }
+        entries.push(listTitle(`Recently ${ui.doneTitle}`))
+        for (let es of store.recentStores) entries.push(ui.itemView(es))
+      }
+      break
+
+    case "history":
+      if (store.history.pending) {
+        entries.push(<UI.ListItem><UI.ListItemText primary="Loading..." /></UI.ListItem>)
+      } else if (store.history.items.length == 0) {
+        entries.push(<UI.ListItem><UI.Typography variant="subtitle1" />(empty)</UI.ListItem>)
+      } else {
+        const stores = store.historyStores.filter(item => item.item.matches(store.histFilter))
+        for (let part of partitionByYear(stores)) {
+          entries.push(listTitle(`${ui.doneTitle} - ${part.year}`))
+          entries.push(...part.stores.map(ui.itemView))
+        }
+      }
+      break
+
+    case "bulk":
+      return <div>TODO</div>
     }
-    entries.push(listTitle(`Recently ${ui.doneTitle}`))
-    for (let es of store.recentStores) entries.push(ui.itemView(es))
+
     return <UI.List>{entries}</UI.List>
   }
 }
@@ -707,18 +749,48 @@ class ItemsFooterRaw extends React.Component<IVProps> {
 
   render () {
     const {store, classes, ui} = this.props
-    return <div>
-      <UI.Toolbar>
-        <UI.Typography style={{marginLeft: 8, marginRight: 8}} variant="h6" color="inherit">
-          Add:</UI.Typography>
-        <UI.Input type="text" className={classes.addText} placeholder={ui.addPlaceholder}
-                  value={store.newItem} disabled={!store}
+    const modeSelect = <UI.FormControl style={{marginRight: 8}}>
+        <UI.Select className={classes.whiteUnderlined} classes={{icon: classes.white}}
+                   value={store.mode} disableUnderline={true}
+                   onChange={ev => store.mode = ev.target.value as S.ItemsMode}>
+        <UI.MenuItem value="current">Current</UI.MenuItem>
+        <UI.MenuItem value="history">History</UI.MenuItem>
+        <UI.MenuItem value="bulk">Bulk</UI.MenuItem>
+      </UI.Select>
+    </UI.FormControl>
+
+    const footText = (text :string) =>
+      <UI.Typography style={{marginRight: 8}} variant="h6" color="inherit">{text}</UI.Typography>
+
+    switch (store.mode) {
+    case "current":
+      return <UI.Toolbar>
+        {modeSelect}
+        {footText("Add:")}
+        <UI.Input type="text" className={classes.footText} placeholder={ui.addPlaceholder}
+                  value={store.newItem} disabled={!store} disableUnderline={true}
                   onChange={ev => store.newItem = ev.currentTarget.value}
                   onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
         <UI.IconButton color="inherit" aria-label="Menu" disabled={!store}
           onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
       </UI.Toolbar>
-    </div>
+    case "history":
+      return <UI.Toolbar>
+        {modeSelect}
+        {footText("Filter:")}
+        <UI.Input type="text" className={classes.footText} disabled={store.history.pending}
+                  value={store.histFilterPend} disableUnderline={true}
+                  onChange={ev => {
+                    store.histFilterPend = ev.currentTarget.value
+                    setTimeout(() => store.applyHistFilter(), 200)
+                  }}
+                  onKeyPress={ev => { if (ev.key === "Enter") store.applyHistFilter() }} />
+      </UI.Toolbar>
+    case "bulk":
+      return <UI.Toolbar>
+        {modeSelect}
+      </UI.Toolbar>
+    }
   }
 
   protected addNewEntry () {
@@ -729,46 +801,6 @@ class ItemsFooterRaw extends React.Component<IVProps> {
   }
 }
 export const ItemsFooter = UI.withStyles(ivStyles)(ItemsFooterRaw)
-
-// -----------------
-// Item history view
-
-@observer
-export class ItemHistoryView extends React.Component<{store :S.ItemHistoryStore}> {
-
-  render () {
-    const {store} = this.props, ui = itemUI(store.type)
-    return (
-      <UI.List>
-        <UI.ListItem disableGutters>
-          <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
-          <UI.Typography variant="h6" color="inherit">
-            {ui.doneTitle} - {store.year}
-          </UI.Typography>
-        </UI.ListItem>
-        {store.itemStores.map(store => ui.itemView(store))}
-        {store.itemStores.length == 0 ? <UI.ListItem><UI.Typography variant="subtitle1" />(empty)</UI.ListItem> : undefined}
-      </UI.List>
-    )
-  }
-}
-
-@observer
-export class ItemHistoryFooter extends React.Component<{store :S.ItemHistoryStore}> {
-
-  render () {
-    const {store} = this.props, ui = itemUI(store.type)
-    return (
-      <UI.Toolbar>
-        <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
-        {itemTypeSelect(() => store.type, type => store.type = type)}
-        {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollYear(-1))}
-        <UI.Typography variant="h6" color="inherit">{String(store.year)}</UI.Typography>
-        {U.menuButton("next", <Icons.ArrowRight />, () => store.rollYear(1))}
-      </UI.Toolbar>
-    )
-  }
-}
 
 // --------------------
 // Bulk viewing/editing
@@ -792,6 +824,9 @@ export class BulkFooter extends React.Component<{store :S.BulkStore}> {
       <UI.Toolbar>
         <UI.IconButton color="inherit">{ui.titleIcon}</UI.IconButton>
         {itemTypeSelect(() => store.type, type => store.type = type)}
+        {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollYear(-1))}
+        <UI.Typography variant="h6" color="inherit">{String(store.year || "<incomplete>")}</UI.Typography>
+        {U.menuButton("next", <Icons.ArrowRight />, () => store.rollYear(1))}
         <UI.Typography style={{marginLeft: 20}} variant="h6" color="inherit">
           Bulk import:</UI.Typography>
         <UI.TextField value={store.legacyData}
