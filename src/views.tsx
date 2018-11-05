@@ -408,11 +408,11 @@ class ReadView extends ProtractedView {
     items.push(gridTextEditor("Title", item.title.editValue))
     items.push(gridOptTextEditor("Author", item.author.editValue))
     items.push(gridEnumEditor("Type", ReadTypes, item.type.editValue))
-    items.push(boolEditor("Abandoned", item.abandoned.editValue))
     items.push(gridOptTextEditor("Tags", item.tags.editValue, 6))
     items.push(gridOptTextEditor("Link", item.link.editValue, 6))
     items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
     items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
+    items.push(boolEditor("Abandoned", item.abandoned.editValue))
     items.push(gridDateEditor("Started", item.started.editValue))
     items.push(gridCompletedEditor(item.completed.editValue))
     super.addDialogItems(items)
@@ -476,11 +476,11 @@ class WatchView extends ItemView {
   protected addDialogItems (items :JSX.Element[]) {
     const item = this.item
     items.push(gridTextEditor("Title", item.title.editValue))
-    items.push(gridOptTextEditor("Director", item.director.editValue, 6))
-    items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
+    items.push(gridOptTextEditor("Director", item.director.editValue))
     items.push(gridEnumEditor("Type", WatchTypes, item.type.editValue))
     items.push(gridOptTextEditor("Tags", item.tags.editValue, 6))
-    items.push(gridOptTextEditor("Link", item.link.editValue))
+    items.push(gridOptTextEditor("Link", item.link.editValue, 6))
+    items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
     items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
     items.push(gridCompletedEditor(item.completed.editValue))
     super.addDialogItems(items)
@@ -599,9 +599,9 @@ class PlayView extends ProtractedView {
     const item = this.item
     items.push(gridTextEditor("Title", item.title.editValue))
     items.push(gridEnumEditor("Platform", PlayTypes, item.platform.editValue))
-    items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
     items.push(gridOptTextEditor("Tags", item.tags.editValue, 6))
     items.push(gridOptTextEditor("Link", item.link.editValue, 6))
+    items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
     items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
     items.push(boolEditor("Abandoned", item.abandoned.editValue))
     items.push(gridDateEditor("Started", item.started.editValue))
@@ -652,7 +652,7 @@ class DineView extends ItemView {
   protected addDialogItems (items :JSX.Element[]) {
     const item = this.item
     items.push(gridTextEditor("Name", item.name.editValue))
-    items.push(gridOptTextEditor("Location", item.location.editValue))
+    items.push(gridOptTextEditor("Location", item.location.editValue, 6))
     items.push(gridOptTextEditor("Tags", item.tags.editValue, 6))
     items.push(gridOptTextEditor("Link", item.link.editValue, 6))
     items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
