@@ -237,20 +237,27 @@ class ItemView extends React.Component<{store :S.ItemStore}> {
   render () {
     const store = this.props.store, link = store.item.link.value
     // TODO: window.open is kinda lame, make the link a real link...
-    const typeIcon = this.typeIcon
-    const rating = this.rating
     return (
       <UI.ListItem disableGutters>
         {this.makeCheckButton(store)}
         <UI.ListItemText primary={this.primaryText} secondary={this.secondaryText || ""} />
         {this.tags().map(tag => <Tag key={tag} tag={tag} />)}
         {link ? U.menuButton("link", Icons.link, () => window.open(link)) : undefined}
-        {rating !== undefined && <UI.Typography variant="h6">{RatingEmoji[rating]}</UI.Typography>}
-        {typeIcon && <UI.IconButton>{typeIcon}</UI.IconButton>}
+        {this.badges()}
         {U.menuButton("edit", Icons.edit, () => store.startEdit())}
         {this.createEditDialog()}
      </UI.ListItem>
     )
+  }
+
+  protected badges () :JSX.Element[] {
+    const typeIcon = this.typeIcon
+    const rating = this.rating
+    const badges :JSX.Element[] = []
+    if (rating !== undefined) badges.push(
+      <UI.Typography key="rating" variant="h6">{RatingEmoji[rating]}</UI.Typography>)
+    if (typeIcon) badges.push(<UI.IconButton key="type">{typeIcon}</UI.IconButton>)
+    return badges
   }
 
   // this should be abstract but making this class abstract breaks the @observer annotation and we
@@ -261,9 +268,11 @@ class ItemView extends React.Component<{store :S.ItemStore}> {
   protected tags () :string[] { return this.props.store.item.tags.value }
 
   protected makeCheckButton (store :S.ItemStore) :JSX.Element {
-    return store.item.completed.value ?
-      U.menuButton("check", Icons.checkedBox, () => store.uncompleteItem()) :
-      U.menuButton("check", Icons.uncheckedBox, () => store.completeItem())
+    if (store.item.completed.value)
+      return U.menuButton("check", Icons.checkedBox, () => store.uncompleteItem())
+    else if (!store.item.startedProp || store.item.startedProp.value)
+      return U.menuButton("check", Icons.uncheckedBox, () => store.completeItem())
+    else return U.menuButton("start", Icons.start, () => store.startItem())
   }
 
   protected get rating () :number|void { return undefined }
@@ -313,21 +322,13 @@ class ItemEditDialogRaw extends React.Component<IEDProps> {
 
 const ItemEditDialog = UI.withMobileDialog<IEDProps>()(ItemEditDialogRaw)
 
-class ProtractedView extends ItemView {
-  protected makeCheckButton (store :S.ItemStore) :JSX.Element {
-    const item = store.item as M.Protracted
-    if (item.started.value) return super.makeCheckButton(store) // complete item button
-    else return U.menuButton("start", Icons.start, () => store.startItem())
-  }
-}
-
 const RatingTypes = [
   {value: "none",  label: "None"},
-  {value: "bad",   label: RatingEmoji[1] + " Bad"},
-  {value: "meh",   label: RatingEmoji[2] + " Meh"},
-  {value: "ok",    label: RatingEmoji[3] + " OK"},
-  {value: "good",  label: RatingEmoji[4] + " Good"},
-  {value: "great", label: RatingEmoji[5] + " Great"}]
+  {value: "bad",   label: RatingEmoji[1] + "Bad"},
+  {value: "meh",   label: RatingEmoji[2] + "Meh"},
+  {value: "ok",    label: RatingEmoji[3] + "OK"},
+  {value: "good",  label: RatingEmoji[4] + "Good"},
+  {value: "great", label: RatingEmoji[5] + "Great"}]
 
 type ItemUI = {
   addPlaceholder :string
@@ -340,7 +341,7 @@ type ItemUI = {
 // ----
 // BUILD
 
-class BuildView extends ProtractedView {
+class BuildView extends ItemView {
   get item () :M.Build { return this.props.store.item as M.Build }
 
   protected get primaryText () :string { return this.item.text.value }
@@ -383,7 +384,7 @@ const ReadTypes = [{value: "article", label: "Article"},
                    {value: "book", label: "Book"},
                    {value: "paper", label: "Paper"}]
 
-class ReadView extends ProtractedView {
+class ReadView extends ItemView {
   get item () :M.Read { return this.props.store.item as M.Read }
   protected get primaryText () :string { return this.item.title.value }
   protected get secondaryText () :string|void {
@@ -582,7 +583,9 @@ const PlayTypes = [{value: "pc",     label: "PC"},
                    {value: "table",  label: "Table"}]
 const PlatformToName = new Map(PlayTypes.map(({value, label}) => [value, label] as [any, any]))
 
-class PlayView extends ProtractedView {
+const SawCreditsEmoji = "🏁"
+
+class PlayView extends ItemView {
   get item () :M.Play { return this.props.store.item as M.Play }
   protected get primaryText () :string { return this.item.title.value }
   protected get secondaryText () :string|void {
@@ -592,7 +595,13 @@ class PlayView extends ProtractedView {
 
   protected get rating () :number|void {
     const ridx = M.Ratings.indexOf(this.item.rating.value)
-    return this.item.abandoned.value ? 0 : (ridx == 0 ? undefined : ridx)
+    return (ridx == 0 ? undefined : ridx)
+  }
+  protected badges () :JSX.Element[] {
+    const badges = super.badges()
+    if (this.item.credits.value) badges.unshift(
+      <UI.Typography key="rating" variant="h6">{SawCreditsEmoji}</UI.Typography>)
+    return badges
   }
 
   protected addDialogItems (items :JSX.Element[]) {
@@ -603,7 +612,7 @@ class PlayView extends ProtractedView {
     items.push(gridOptTextEditor("Link", item.link.editValue, 6))
     items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
     items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
-    items.push(boolEditor("Abandoned", item.abandoned.editValue))
+    items.push(boolEditor("Saw Credits?", item.credits.editValue))
     items.push(gridDateEditor("Started", item.started.editValue))
     items.push(gridCompletedEditor(item.completed.editValue))
     super.addDialogItems(items)
@@ -624,7 +633,7 @@ function bulkPlayEditor (item :M.Item) :JSX.Element {
     <UI.TableRow key={item.ref.id}>
       {tableCell(textEditor("Title", play.title.syncValue))}
       {tableCell(enumEditor("Platform", PlayTypes, play.platform.syncValue), "100px")}
-      {tableCell(boolEditor("Abandoned", play.abandoned.syncValue), "110px")}
+      {tableCell(boolEditor("Credits", play.credits.syncValue), "110px")}
       {tableCell(optTextEditor("Link", play.link.syncValue), "200px")}
       {tableCell(optTextEditor("Recommender", play.recommender.syncValue), "120px")}
       {tableCell(enumEditor("Rating", RatingTypes, play.rating.syncValue), "80px")}
@@ -751,7 +760,7 @@ class ItemsViewRaw extends React.Component<IVProps> {
       </UI.ListItem>
     }
     const loadingItem = () =>
-      <UI.ListItem key={"loading"}><UI.ListItemText primary="Loading..." /></UI.ListItem>
+      <UI.ListItem key="loading"><UI.ListItemText primary="Loading..." /></UI.ListItem>
     const entries :JSX.Element[] = []
     switch (store.mode) {
     case "current":
@@ -777,7 +786,7 @@ class ItemsViewRaw extends React.Component<IVProps> {
         if (stores.length == 0) {
           entries.push(listTitle(ui.doneTitle))
           const text = store.histFilter ? `nothing matches '${store.histFilter}'` : "nothing"
-          entries.push(<UI.ListItem key={"none"}><UI.ListItemText primary={text} /></UI.ListItem>)
+          entries.push(<UI.ListItem key="none"><UI.ListItemText primary={text} /></UI.ListItem>)
         } else for (let part of partitionByYear(stores)) {
           entries.push(listTitle(`${ui.doneTitle} - ${part.year}`))
           entries.push(...part.stores.map(ui.itemView))

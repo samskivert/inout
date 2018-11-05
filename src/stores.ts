@@ -131,17 +131,14 @@ export class ItemStore {
 
   constructor (readonly item :M.Item) {}
 
+  startItem () {
+    this.item.startedProp && this.item.startedProp.syncValue.set(U.toStamp(new Date()))
+  }
   completeItem () {
     this.item.completed.syncValue.set(U.toStamp(new Date()))
   }
   uncompleteItem () {
     this.item.completed.syncValue.set(null)
-  }
-
-  startItem () {
-    if (this.item instanceof M.Protracted) {
-      this.item.started.syncValue.set(U.toStamp(new Date()))
-    }
   }
 
   deleteItem () {
@@ -296,7 +293,8 @@ export abstract class ProtractedItemsStore extends ItemsStore {
 
   get partitions () :Partition[] {
     const stores = this.itemStores
-    const pending = (store :ItemStore) => (store.item as M.Protracted).started.value === undefined
+    const pending = (store :ItemStore) => (!store.item.startedProp ||
+                                           store.item.startedProp.value === undefined)
     const parts = [{title: this.title, stores: stores.filter(pending)}]
     const started = stores.filter(store => !pending(store))
     if (started.length > 0) parts.unshift({title: this.startedTitle, stores: started})

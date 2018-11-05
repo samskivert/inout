@@ -124,6 +124,7 @@ export abstract class Item extends Doc {
   readonly link = this.newProp<URL|void>("link", undefined)
   // we use null here (rather than undefined) because we need a null-valued property
   // in the database to enable queries for property == null (incomplete items)
+  get startedProp () :Prop<Stamp|void>|void { return undefined }
   readonly completed = this.newProp<Stamp|null>("completed", null)
 
   constructor (ref :Ref, data :Data) {
@@ -162,13 +163,10 @@ export abstract class Item extends Doc {
   }
 }
 
-export abstract class Protracted extends Item {
-  readonly started = this.newProp<Stamp|void>("started", undefined)
-  readonly abandoned = this.newProp("abandoned", false)
-}
-
-export class Build extends Protracted {
+export class Build extends Item {
   readonly text = this.newProp("text", "")
+  readonly started = this.newProp<Stamp|void>("started", undefined)
+  get startedProp () :Prop<Stamp|void>|void { return this.started }
 
   matches (text :string) {
     return super.matches(text) || checkMatch(this.text.value, text)
@@ -192,19 +190,18 @@ export abstract class Consume extends Item {
 }
 
 export type ReadType = "article" | "book" | "paper"
-export class Read extends Protracted {
+export class Read extends Consume {
   readonly title = this.newProp("title", "")
   readonly author = this.newProp<string|void>("author", undefined)
   readonly type = this.newProp<ReadType>("type", "book")
-  // have to repeat consume as we cannot multiply inherit from protected & consume
-  readonly rating = this.newProp<Rating>("rating", "none")
-  readonly recommender = this.newProp<string|void>("recommender", undefined)
+  readonly started = this.newProp<Stamp|void>("started", undefined)
+  get startedProp () :Prop<Stamp|void>|void { return this.started }
+  readonly abandoned = this.newProp("abandoned", false)
 
   matches (text :string) {
     return (super.matches(text) ||
             checkMatch(this.title.value, text) ||
-            checkMatch(this.author.value, text) ||
-            checkMatch(this.recommender.value, text))
+            checkMatch(this.author.value, text))
   }
 }
 
@@ -237,18 +234,19 @@ export class Hear extends Consume {
 export type Platform = "pc" | "mobile" | "switch" | "ps4" | "xbox" | "3ds" | "vita" |
   "wiiu" | "ps3" | "wii" | "table"
 
-export class Play extends Protracted {
+export class Play extends Consume {
   readonly title = this.newProp("title", "")
   readonly platform = this.newProp<Platform>("platform", "pc")
-  // have to repeat consume as we cannot multiply inherit from protected & consume
-  readonly rating = this.newProp<Rating>("rating", "none")
-  readonly recommender = this.newProp<string|void>("recommender", undefined)
+  readonly started = this.newProp<Stamp|void>("started", undefined)
+  get startedProp () :Prop<Stamp|void>|void { return this.started }
+  // did we play through enough to see the credits?
+  readonly credits = this.newProp("credits", false)
 
-  matches (text :string) {
-    return (super.matches(text) ||
-            checkMatch(this.title.value, text) ||
-            checkMatch(this.recommender.value, text) ||
-            checkMatch(this.platform.value, text))
+  matches (seek :string) {
+    return (super.matches(seek) ||
+            checkMatch(this.title.value, seek) ||
+            checkMatch(this.platform.value, seek) ||
+            (seek == "finished" && this.credits.value))
   }
 }
 
