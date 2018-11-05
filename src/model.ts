@@ -179,7 +179,8 @@ export class Do extends Item {
   readonly text = this.newProp("text", "")
 }
 
-type Rating = "none" | "bad" | "meh" | "ok" | "good" | "great"
+export type Rating = "none" | "bad" | "meh" | "ok" | "good" | "great"
+export const Ratings = ["none", "bad", "meh", "ok", "good", "great"]
 
 export abstract class Consume extends Item {
   readonly rating = this.newProp<Rating>("rating", "none")

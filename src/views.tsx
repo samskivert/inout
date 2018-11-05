@@ -222,9 +222,14 @@ class TagRaw extends React.Component<TagProps> {
 }
 const Tag = UI.withStyles(tagStyles)(TagRaw)
 
-function addSecondary (label :string, text :string|void) :string {
-  return text ? ` (${label}: ${text})` : ""
+function addSecondary (have :string|void, label :string, text :string|void) :string|void {
+  if (!have && !text) return undefined
+  else if (!have) return `(${label}: ${text})`
+  else if (!text) return have
+  else `${have} (${label}: ${text})`
 }
+
+const RatingEmoji = ["😴", "🤮", "😒", "😐", "🙂","😍"]
 
 @observer
 class ItemView extends React.Component<{store :S.ItemStore}> {
@@ -233,14 +238,15 @@ class ItemView extends React.Component<{store :S.ItemStore}> {
     const store = this.props.store, link = store.item.link.value
     // TODO: window.open is kinda lame, make the link a real link...
     const typeIcon = this.typeIcon
-    const typeDiv = typeIcon && <UI.IconButton>{typeIcon}</UI.IconButton>
+    const rating = this.rating
     return (
       <UI.ListItem disableGutters>
         {this.makeCheckButton(store)}
         <UI.ListItemText primary={this.primaryText} secondary={this.secondaryText || ""} />
         {this.tags().map(tag => <Tag key={tag} tag={tag} />)}
         {link ? U.menuButton("link", Icons.link, () => window.open(link)) : undefined}
-        {typeDiv}
+        {rating !== undefined && <UI.Typography variant="h6">{RatingEmoji[rating]}</UI.Typography>}
+        {typeIcon && <UI.IconButton>{typeIcon}</UI.IconButton>}
         {U.menuButton("edit", Icons.edit, () => store.startEdit())}
         {this.createEditDialog()}
      </UI.ListItem>
@@ -260,6 +266,7 @@ class ItemView extends React.Component<{store :S.ItemStore}> {
       U.menuButton("check", Icons.uncheckedBox, () => store.completeItem())
   }
 
+  protected get rating () :number|void { return undefined }
   protected get typeIcon () :JSX.Element|void { return undefined }
 
   protected addDialogItems (items :JSX.Element[]) {}
@@ -315,12 +322,12 @@ class ProtractedView extends ItemView {
 }
 
 const RatingTypes = [
-  {value: "none", label: "None"},
-  {value: "bad", label: "Bad"},
-  {value: "meh", label: "Meh"},
-  {value: "ok", label: "OK"},
-  {value: "good", label: "Good"},
-  {value: "great", label: "Great"}]
+  {value: "none",  label: "None"},
+  {value: "bad",   label: RatingEmoji[1] + " Bad"},
+  {value: "meh",   label: RatingEmoji[2] + " Meh"},
+  {value: "ok",    label: RatingEmoji[3] + " OK"},
+  {value: "good",  label: RatingEmoji[4] + " Good"},
+  {value: "great", label: RatingEmoji[5] + " Great"}]
 
 type ItemUI = {
   addPlaceholder :string
@@ -380,7 +387,12 @@ class ReadView extends ProtractedView {
   get item () :M.Read { return this.props.store.item as M.Read }
   protected get primaryText () :string { return this.item.title.value }
   protected get secondaryText () :string|void {
-    return this.item.author.value + addSecondary("via", this.item.recommender.value)
+    return addSecondary(this.item.author.value, "via", this.item.recommender.value)
+  }
+
+  protected get rating () :number|void {
+    const ridx = M.Ratings.indexOf(this.item.rating.value)
+    return this.item.abandoned.value ? 0 : (ridx == 0 ? undefined : ridx)
   }
 
   protected get typeIcon () :JSX.Element|void {
@@ -444,7 +456,12 @@ class WatchView extends ItemView {
   get item () :M.Watch { return this.props.store.item as M.Watch }
   protected get primaryText () :string { return this.item.title.value }
   protected get secondaryText () :string|void {
-    return this.item.director.value  + addSecondary("rec", this.item.recommender.value)
+    return addSecondary(this.item.director.value, "rec", this.item.recommender.value)
+  }
+
+  protected get rating () :number|void {
+    const ridx = M.Ratings.indexOf(this.item.rating.value)
+    return (ridx == 0 ? undefined : ridx)
   }
 
   protected get typeIcon () :JSX.Element|void {
@@ -504,7 +521,12 @@ class HearView extends ItemView {
   get item () :M.Hear { return this.props.store.item as M.Hear }
   protected get primaryText () :string { return this.item.title.value }
   protected get secondaryText () :string|void {
-    return this.item.artist.value  + addSecondary("rec", this.item.recommender.value)
+    return addSecondary(this.item.artist.value, "rec", this.item.recommender.value)
+  }
+
+  protected get rating () :number|void {
+    const ridx = M.Ratings.indexOf(this.item.rating.value)
+    return (ridx == 0 ? undefined : ridx)
   }
 
   protected addDialogItems (items :JSX.Element[]) {
@@ -563,9 +585,14 @@ const PlatformToName = new Map(PlayTypes.map(({value, label}) => [value, label] 
 class PlayView extends ProtractedView {
   get item () :M.Play { return this.props.store.item as M.Play }
   protected get primaryText () :string { return this.item.title.value }
-  protected get secondaryText () :string {
-    const plat = PlatformToName.get(this.item.platform.value) || ""
-    return plat + addSecondary("rec", this.item.recommender.value)
+  protected get secondaryText () :string|void {
+    return addSecondary(PlatformToName.get(this.item.platform.value),
+                        "rec", this.item.recommender.value)
+  }
+
+  protected get rating () :number|void {
+    const ridx = M.Ratings.indexOf(this.item.rating.value)
+    return this.item.abandoned.value ? 0 : (ridx == 0 ? undefined : ridx)
   }
 
   protected addDialogItems (items :JSX.Element[]) {
@@ -614,7 +641,12 @@ class DineView extends ItemView {
   get item () :M.Dine { return this.props.store.item as M.Dine }
   protected get primaryText () :string { return this.item.name.value }
   protected get secondaryText () :string|void {
-    return this.item.location.value + addSecondary("rec", this.item.recommender.value)
+    return addSecondary(this.item.location.value, "rec", this.item.recommender.value)
+  }
+
+  protected get rating () :number|void {
+    const ridx = M.Ratings.indexOf(this.item.rating.value)
+    return (ridx == 0 ? undefined : ridx)
   }
 
   protected addDialogItems (items :JSX.Element[]) {
