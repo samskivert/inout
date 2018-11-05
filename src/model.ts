@@ -246,7 +246,8 @@ export class Play extends Protracted {
   matches (text :string) {
     return (super.matches(text) ||
             checkMatch(this.title.value, text) ||
-            checkMatch(this.recommender.value, text))
+            checkMatch(this.recommender.value, text) ||
+            checkMatch(this.platform.value, text))
   }
 }
 

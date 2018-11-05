@@ -72,8 +72,6 @@ function contentView (tab :S.Tab, stores :S.Stores) :[JSX.Element, JSX.Element] 
   switch (tab) {
   case S.Tab.JOURNAL: return [<V.JournumView store={stores.journal} />,
                               <V.JournumFooter store={stores.journal} />]
-  case    S.Tab.BULK: return [<V.BulkView store={stores.bulk} />,
-                              <V.BulkFooter store={stores.bulk} />]
   case    S.Tab.READ: return itemsView(stores, M.ItemType.READ)
   case   S.Tab.WATCH: return itemsView(stores, M.ItemType.WATCH)
   case    S.Tab.HEAR: return itemsView(stores, M.ItemType.HEAR)
@@ -115,7 +113,7 @@ export class AppViewRaw extends React.Component<AVProps> {
 
   render () {
     // we have to check user to ensure an observable depend, meh
-    const {classes, store, width} = this.props, {user, stores} = store
+    const {classes, store} = this.props, {user, stores} = store
     if (!user || !stores) return (
       <div className={classes.root}>
         <UI.AppBar position="fixed">
@@ -140,7 +138,6 @@ export class AppViewRaw extends React.Component<AVProps> {
             {menuButton("play", Icons.play, () => store.tab = S.Tab.PLAY)}
             {menuButton("dine", Icons.food, () => store.tab = S.Tab.DINE)}
             {menuButton("build", Icons.build, () => store.tab = S.Tab.BUILD)}
-            {width === "xs" ? undefined : menuButton("bulk", Icons.bulk, () => store.tab = S.Tab.BULK)}
             <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
             <UI.IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
               <Icons.CloudOff /></UI.IconButton>

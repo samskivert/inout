@@ -187,9 +187,24 @@ export type ItemsMode = "current" | "history" | "bulk"
 
 export abstract class ItemsStore {
   @observable mode :ItemsMode = "current"
+
+  constructor (readonly coll :DB.ItemCollection) {
+    this.items = coll.items()
+    this.compItems = coll.recentCompleted()
+  }
+
+  // TODO: someone needs to call close?
+  close () {
+    this.items.close()
+    this.compItems.close()
+    this._history && this._history.close()
+    this._bulkItems && this._bulkItems.close()
+  }
+
+  //
+  // Current stuff
+
   @observable newItem = ""
-  @observable histFilterPend = ""
-  @observable histFilter = ""
 
   readonly items :DB.Items
   readonly compItems :DB.Items
@@ -200,22 +215,6 @@ export abstract class ItemsStore {
 
   abstract get title () :string
   get partitions () :Partition[] { return [{title: this.title, stores: this.itemStores}] }
-
-  get historyStores () :ItemStore[] { return storesFor(this.history) }
-  get history () :DB.Items {
-    if (this._history === null) this._history = this.coll.completed()
-    return this._history
-  }
-  private _history :DB.Items|null = null
-
-  constructor (readonly coll :DB.ItemCollection) {
-    this.items = coll.items()
-    this.compItems = coll.recentCompleted()
-  }
-
-  applyHistFilter () {
-    this.histFilter = this.histFilterPend
-  }
 
   async addItem (text :string) {
     try {
@@ -231,11 +230,45 @@ export abstract class ItemsStore {
     }
   }
 
-  // TODO: someone needs to call close!
-  close () {
-    this.items.close()
-    this.compItems.close()
-    this._history && this._history.close()
+  //
+  // History stuff
+
+  @observable histFilterPend = ""
+  @observable histFilter = ""
+
+  get historyStores () :ItemStore[] { return storesFor(this.history) }
+  get history () :DB.Items {
+    if (this._history === null) this._history = this.coll.completed()
+    return this._history
+  }
+  private _history :DB.Items|null = null
+
+  applyHistFilter () {
+    this.histFilter = this.histFilterPend
+  }
+
+  //
+  // Bulk editing & import stuff
+
+  @observable bulkYear :number|void = undefined
+  @observable legacyData :string = ""
+
+  get bulkItems () :DB.Items {
+    if (this._bulkItems === null || this._bulkYear !== this.bulkYear) {
+      this._bulkItems = this.coll.items(this._bulkYear = this.bulkYear)
+    }
+    return this._bulkItems
+  }
+  private _bulkYear :number|void = undefined
+  private _bulkItems :DB.Items|null = null
+
+  rollBulkYear (delta :number) {
+    const thisYear = new Date().getFullYear()
+    if (delta < 0 && !this.bulkYear) this.bulkYear = thisYear
+    else {
+      const wantYear = (this.bulkYear || thisYear) + delta
+      this.bulkYear = wantYear > thisYear ? undefined : wantYear
+    }
   }
 
   importLegacy (text :string) {
@@ -328,52 +361,14 @@ export class ToDineStore extends ItemsStore {
 }
 
 //
-// Bulk item editing
-
-export class BulkStore {
-  @observable type = M.ItemType.READ
-  @observable year :number|void = undefined
-  @observable legacyData :string = ""
-
-  constructor (readonly db :DB.DB, readonly stores :Stores) {}
-
-  get items () :DB.Items {
-    const items = this._items
-    if (items !== null && this.type === this._itemsType && this.year === this._itemsYear) return items
-    if (items) items.close()
-    this._itemsType = this.type
-    this._itemsYear = this.year
-    return this._items = this.db.coll(this.type).items(this.year)
-  }
-  private _itemsType :M.ItemType|null = null
-  private _itemsYear :number|void = undefined
-  private _items :DB.Items|null = null
-
-  rollYear (delta :number) {
-    const thisYear = new Date().getFullYear()
-    if (delta < 0 && !this.year) this.year = thisYear
-    else {
-      const wantYear = (this.year || thisYear) + delta
-      this.year = wantYear > thisYear ? undefined : wantYear
-    }
-  }
-
-  close () {
-    this._items && this._items.close()
-  }
-}
-
-//
 // Top-level app
 
 export class Stores {
   journal :JournumStore
   items   :Map<M.ItemType, ItemsStore> = new Map()
-  bulk    :BulkStore
 
   constructor (readonly db :DB.DB) {
     this.journal = new JournumStore(db, new Date())
-    this.bulk = new BulkStore(db, this)
   }
 
   storeFor (type :M.ItemType) {
@@ -387,7 +382,6 @@ export class Stores {
   close () {
     this.journal.close()
     for (let store of this.items.values()) store.close()
-    this.bulk.close()
   }
 
   _createStore (type :M.ItemType) :ItemsStore {
@@ -403,7 +397,7 @@ export class Stores {
   }
 }
 
-export enum Tab { JOURNAL, READ, WATCH, HEAR, PLAY, DINE, BUILD/*, DO*/, BULK }
+export enum Tab { JOURNAL, READ, WATCH, HEAR, PLAY, DINE, BUILD/*, DO*/ }
 
 export class AppStore {
   readonly db = new DB.DB()
