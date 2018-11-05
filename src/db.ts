@@ -70,7 +70,8 @@ export class ItemCollection {
   }
 
   recentCompleted () :Items {
-    const query = this.col.orderBy("completed", "desc").limit(5)
+    const query = this.col.where("completed", ">=", `2000-01-01`)
+                          .orderBy("completed", "desc").limit(5)
     return new Items(query, this.decoder, ByCompleted)
   }
 
