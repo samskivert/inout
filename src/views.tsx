@@ -17,8 +17,8 @@ function tableCell (contents :JSX.Element, width :string = "") :JSX.Element {
   return <UI.TableCell style={styles}>{contents}</UI.TableCell>
 }
 
-function textListItem (text :string) :JSX.Element {
-  return <UI.ListItem><UI.ListItemText primary={text} /></UI.ListItem>
+function textListItem (text :string, key :string|undefined = undefined) :JSX.Element {
+  return <UI.ListItem key={key}><UI.ListItemText primary={text} /></UI.ListItem>
 }
 
 function cycleButton (options :Object, current :string,
@@ -215,25 +215,28 @@ class JournalViewRaw extends React.Component<JVProps> {
       </UI.List>
     case "history":
       const dates :JSX.Element[] = []
-      for (let jm of store.history.sortedItems) {
+      if (store.history.pending) dates.push(textListItem("Loading...", "loading"))
+      else for (let jm of store.history.sortedItems) {
         const filter = M.makeFilter(store.histFilter)
         const filtered = jm.entries.filter(entry => entry.matches(filter))
-        if (filtered.length > 0) dates.push(<UI.List key={jm.date}>
-          <UI.ListItem key="header" disableGutters>
+        if (filtered.length > 0) {
+          dates.push(<UI.ListItem key={jm.date} disableGutters>
             <UI.IconButton color="inherit"><Icons.Today /></UI.IconButton>
             <UI.Typography variant="h6" color="inherit">
               {U.formatDate(new Date(jm.midnight))}
             </UI.Typography>
-          </UI.ListItem>
-          {filtered.map(entry => <UI.ListItem>
-             <UI.ListItemText primary={entry.text.value} />
-             {entry.tags.value.map(tag => <Tag key={tag} tag={tag} />)}
-           </UI.ListItem>)}
-         </UI.List>)
+          </UI.ListItem>)
+          for (let entry of filtered) {
+            dates.push(<UI.ListItem key={`${jm.date}:${entry.key}`}>
+              <UI.ListItemText primary={entry.text.value} />
+              {entry.tags.value.map(tag => <Tag key={tag} tag={tag} />)}
+            </UI.ListItem>)
+          }
+        }
       }
       if (dates.length === 0) dates.push(
-        <UI.List key="nomatch">{textListItem(`No matches of '${store.histFilter}'`)}</UI.List>)
-      return dates
+        textListItem(`No matches of '${store.histFilter}'`, "nomatch"))
+      return <UI.List>{dates}</UI.List>
     }
   }
 }

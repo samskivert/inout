@@ -159,7 +159,7 @@ export class JournalStore {
 
   setHistFilter (filter :string) {
     this.histFilterPend = filter
-    setTimeout(() => this.applyHistFilter(), 200)
+    setTimeout(() => this.applyHistFilter(), 500)
   }
   applyHistFilter () {
     this.histFilter = this.histFilterPend
