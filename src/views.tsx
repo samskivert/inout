@@ -176,9 +176,10 @@ const jvStyles = UI.createStyles({
   white: {
     color: "white"
   },
-  whiteUnderlined: {
+  histYear: {
     color: "white",
-    borderBottom: "1px solid white"
+    borderBottom: "1px solid white",
+    marginLeft: 8,
   },
   footText: {
     flexGrow: 1,
@@ -250,6 +251,9 @@ export const JournalView = UI.withStyles(jvStyles)(JournalViewRaw)
 
 interface JFProps extends JVProps, UI.WithWidth {}
 
+const thisYear = new Date().getFullYear()
+const histYears = Array.from(new Array(thisYear-1990)).map((v, ii) => thisYear-ii)
+
 @observer
 class JournalFooterRaw extends React.Component<JFProps> {
 
@@ -274,9 +278,11 @@ class JournalFooterRaw extends React.Component<JFProps> {
     case "history":
       return <UI.Toolbar>
         {modeSelect}
-        {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollHistYear(-1))}
-        {text(String(store.histYear))}
-        {U.menuButton("next", <Icons.ArrowRight />, () => store.rollHistYear(1))}
+        <UI.Select className={classes.histYear} classes={{icon: classes.white}} native
+                   value={store.histYear}
+                   onChange={ev => store.histYear = parseInt(ev.target.value)}>
+          {histYears.map(year => <option key={year} value={year}>{year}</option>)}
+        </UI.Select>
         {footText("Filter:")}
         <UI.Input type="text" className={classes.footText}
                   value={store.histFilterPend} disableUnderline={true}
@@ -791,13 +797,6 @@ const ivStyles = UI.createStyles({
   },
   spacing: {
     unit: 4,
-  },
-  white: {
-    color: "white"
-  },
-  whiteUnderlined: {
-    color: "white",
-    borderBottom: "1px solid white"
   },
   footText: {
     flexGrow: 1,
