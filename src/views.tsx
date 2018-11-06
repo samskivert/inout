@@ -216,26 +216,29 @@ class JournalViewRaw extends React.Component<JVProps> {
     case "history":
       const dates :JSX.Element[] = []
       if (store.history.pending) dates.push(textListItem("Loading...", "loading"))
-      else for (let jm of store.history.sortedItems) {
-        const filter = M.makeFilter(store.histFilter)
-        const filtered = jm.entries.filter(entry => entry.matches(filter))
-        if (filtered.length > 0) {
-          dates.push(<UI.ListItem key={jm.date} disableGutters>
-            <UI.IconButton color="inherit"><Icons.Today /></UI.IconButton>
-            <UI.Typography variant="h6" color="inherit">
-              {U.formatDate(new Date(jm.midnight))}
-            </UI.Typography>
-          </UI.ListItem>)
-          for (let entry of filtered) {
-            dates.push(<UI.ListItem key={`${jm.date}:${entry.key}`}>
-              <UI.ListItemText primary={entry.text.value} />
-              {entry.tags.value.map(tag => <Tag key={tag} tag={tag} />)}
+      else if (store.history.items.length === 0) dates.push(textListItem("No entries...", "none"))
+      else {
+          for (let jm of store.history.sortedItems) {
+          const filter = M.makeFilter(store.histFilter)
+          const filtered = jm.entries.filter(entry => entry.matches(filter))
+          if (filtered.length > 0) {
+            dates.push(<UI.ListItem key={jm.date} disableGutters>
+              <UI.IconButton color="inherit"><Icons.Today /></UI.IconButton>
+              <UI.Typography variant="h6" color="inherit">
+                {U.formatDate(new Date(jm.midnight))}
+              </UI.Typography>
             </UI.ListItem>)
+            for (let entry of filtered) {
+              dates.push(<UI.ListItem key={`${jm.date}:${entry.key}`}>
+                <UI.ListItemText primary={entry.text.value} />
+                {entry.tags.value.map(tag => <Tag key={tag} tag={tag} />)}
+              </UI.ListItem>)
+            }
           }
         }
+        if (dates.length === 0) dates.push(
+          textListItem(`No matches of '${store.histFilter}'`, "nomatch"))
       }
-      if (dates.length === 0) dates.push(
-        textListItem(`No matches of '${store.histFilter}'`, "nomatch"))
       return <UI.List>{dates}</UI.List>
     }
   }
