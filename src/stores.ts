@@ -8,8 +8,8 @@ import * as U from "./util"
 // View model for journal lists and entries there-in
 
 export class EntryStore {
-  @observable editText :string|void = undefined
   @observable showMenu = false
+  @observable editing = false
 
   constructor (readonly journum :M.Journum, readonly entry :M.Entry) {}
 
@@ -19,45 +19,38 @@ export class EntryStore {
   deleteItem () { this.journum.deleteEntry(this.entry.key) }
 
   startEdit () {
-    this.editText = this.entry.text
+    this.entry.startEdit()
+    this.showMenu = false
+    this.editing = true
   }
   handleEdit (key :string) {
     if (key === "Escape") this.cancelEdit()
     else if (key === "Enter") this.commitEdit()
   }
   commitEdit () {
-    if (this.editText) {
-      this.entry.text = this.editText
-    }
-    this.editText = undefined
+    this.entry.commitEdit()
+    this.editing = false
   }
   cancelEdit () {
-    this.editText = undefined
+    this.editing = false
   }
 }
 
-export class JournumStore {
-  @observable currentDate :Date
-  @observable current :M.Journum|void = undefined
-  @observable newEntry :string = ""
-
-  // we track entry stores by key so that we can preserve them across changes to Journum.entries
-  // (mainly reorderings)
-  entryStores :Map<string, EntryStore> = new Map()
-
-  @computed get entries () :EntryStore[] {
-    const jm = this.current
-    const entries :EntryStore[] = []
-    if (jm) {
-      for (let ent of jm.entries) {
-        let es = this.entryStores.get(ent.key)
-        if (!es) this.entryStores.set(ent.key, es = new EntryStore(jm, ent))
-        entries.push(es)
-      }
-      // TODO: prune old stores?
-    } else this.entryStores.clear()
-    return entries
+function getCachedEntryStores (journum :M.Journum, storeCache :Map<string, EntryStore>) {
+  const stores :EntryStore[] = []
+  for (let ent of journum.entries) {
+    let es = storeCache.get(ent.key)
+    if (!es) storeCache.set(ent.key, es = new EntryStore(journum, ent))
+    stores.push(es)
   }
+  // TODO: prune old stores? nah!
+  return stores
+}
+
+export type JournalMode = "current" | "history"
+
+export class JournalStore {
+  @observable mode :JournalMode = "current"
 
   constructor (readonly db :DB.DB, startDate :Date) {
     this.currentDate = startDate
@@ -69,6 +62,23 @@ export class JournumStore {
       this.current.close()
       this.current = undefined
     }
+  }
+
+  //
+  // Current stuff
+
+  @observable currentDate :Date
+  @observable current :M.Journum|void = undefined
+  @observable newEntry :string = ""
+
+  // we track entry stores by key so that we can preserve them across changes to Journum.entries
+  // (mainly reorderings)
+  entryStores :Map<string, EntryStore> = new Map()
+
+  @computed get entries () :EntryStore[] {
+    if (this.current) return getCachedEntryStores(this.current, this.entryStores)
+    this.entryStores.clear()
+    return []
   }
 
   setDate (date :Date) {
@@ -110,6 +120,49 @@ export class JournumStore {
   }
   commitPick () {
     this.pickingDate = undefined
+  }
+
+  addEntry () {
+    if (this.newEntry.length === 0 || !this.current) return
+    const tags :string[] = []
+    let text = popTags(this.newEntry, tags)
+    this.current.addEntry(text, tags)
+    this.newEntry = ""
+  }
+
+  //
+  // History stuff
+
+  @observable histYear :number = new Date().getFullYear()
+  get history () :DB.Annum {
+    if (this._history === null || this._history.year !== this.histYear) {
+      this._history = this.db.journalYear(this.histYear)
+      this._historyEntCache.clear()
+    }
+    return this._history
+  }
+  private _history :DB.Annum|null = null
+  private _historyEntCache :Map<string, Map<string, EntryStore>> = new Map()
+
+  historyEntries (journum :M.Journum) :EntryStore[] {
+    let cache = this._historyEntCache.get(journum.date)
+    if (!cache) this._historyEntCache.set(journum.date, cache = new Map())
+    return getCachedEntryStores(journum, cache)
+  }
+
+  rollHistYear (delta :number) {
+    this.histYear = this.histYear + delta
+  }
+
+  @observable histFilterPend = ""
+  @observable histFilter = ""
+
+  setHistFilter (filter :string) {
+    this.histFilterPend = filter
+    setTimeout(() => this.applyHistFilter(), 200)
+  }
+  applyHistFilter () {
+    this.histFilter = this.histFilterPend
   }
 }
 
@@ -166,7 +219,7 @@ export class ItemStore {
 
 function storesFor (items :DB.Items) :ItemStore[] {
   let stores :ItemStore[] = []
-  for (let item of items.items) {
+  for (let item of items.sortedItems) {
     stores.push(new ItemStore(item))
   }
   return stores
@@ -240,6 +293,10 @@ export abstract class ItemsStore {
   }
   private _history :DB.Items|null = null
 
+  setHistFilter (filter :string) {
+    this.histFilterPend = filter
+    setTimeout(() => this.applyHistFilter(), 200)
+  }
   applyHistFilter () {
     this.histFilter = this.histFilterPend
   }
@@ -248,7 +305,6 @@ export abstract class ItemsStore {
   // Bulk editing & import stuff
 
   @observable bulkYear :number|void = undefined
-  @observable legacyData :string = ""
 
   get bulkItems () :DB.Items {
     if (this._bulkItems === null || this._bulkYear !== this.bulkYear) {
@@ -268,8 +324,11 @@ export abstract class ItemsStore {
     }
   }
 
-  importLegacy (text :string) {
-    for (let data of JSON.parse(text)) this.coll.create(this.legacyItemData(data))
+  @observable legacyData :string = ""
+
+  importLegacy () {
+    for (let data of JSON.parse(this.legacyData)) this.coll.create(this.legacyItemData(data))
+    this.legacyData = ""
   }
 
   protected legacyItemData (ldata :LegacyData) :Data {
@@ -362,11 +421,11 @@ export class ToDineStore extends ItemsStore {
 // Top-level app
 
 export class Stores {
-  journal :JournumStore
+  journal :JournalStore
   items   :Map<M.ItemType, ItemsStore> = new Map()
 
   constructor (readonly db :DB.DB) {
-    this.journal = new JournumStore(db, new Date())
+    this.journal = new JournalStore(db, new Date())
   }
 
   storeFor (type :M.ItemType) {

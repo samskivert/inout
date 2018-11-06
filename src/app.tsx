@@ -19,7 +19,7 @@ const authConfig = {
   ],
   callbacks: {
     signInSuccessWithAuthResult: () => false
-  }
+  },
 };
 
 const IntroTitle =
@@ -70,8 +70,8 @@ function itemsView (stores :S.Stores, type :M.ItemType) :[JSX.Element, JSX.Eleme
 
 function contentView (tab :S.Tab, stores :S.Stores) :[JSX.Element, JSX.Element] {
   switch (tab) {
-  case S.Tab.JOURNAL: return [<V.JournumView store={stores.journal} />,
-                              <V.JournumFooter store={stores.journal} />]
+  case S.Tab.JOURNAL: return [<V.JournalView store={stores.journal} />,
+                              <V.JournalFooter store={stores.journal} />]
   case    S.Tab.READ: return itemsView(stores, M.ItemType.READ)
   case   S.Tab.WATCH: return itemsView(stores, M.ItemType.WATCH)
   case    S.Tab.HEAR: return itemsView(stores, M.ItemType.HEAR)
@@ -116,7 +116,7 @@ export class AppViewRaw extends React.Component<AVProps> {
     const {classes, store} = this.props, {user, stores} = store
     if (!user || !stores) return (
       <div className={classes.root}>
-        <UI.AppBar position="fixed">
+        <UI.AppBar className={classes.appBar}>
           <UI.Toolbar>
             <UI.Typography variant="h6" color="inherit">Input/Output</UI.Typography>
           </UI.Toolbar>

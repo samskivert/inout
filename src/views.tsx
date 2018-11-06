@@ -12,7 +12,7 @@ import * as UI from './ui';
 // HTML helpers
 
 function tableCell (contents :JSX.Element, width :string = "") :JSX.Element {
-  const styles :any = {paddingLeft: 5, paddingRight: 5}
+  const styles :any = {paddingLeft: 5, paddingRight: 5, paddingBottom: 10, borderBottom: "none"}
   if (width) styles.width = width
   return <UI.TableCell style={styles}>{contents}</UI.TableCell>
 }
@@ -21,19 +21,24 @@ function textListItem (text :string) :JSX.Element {
   return <UI.ListItem><UI.ListItemText primary={text} /></UI.ListItem>
 }
 
-const spStyles = UI.createStyles({
-  grow: {
-    flexGrow: 1,
-  },
-})
-
-class SpacerRaw extends React.Component<UI.WithStyles<typeof spStyles>> {
-  render () {
-    const classes = this.props.classes
-    return <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
-  }
+function footText (text :string) {
+  return <UI.Typography style={{marginRight: 8}} variant="h6" color="inherit">{text}</UI.Typography>
 }
-const Spacer = UI.withStyles(spStyles)(SpacerRaw)
+
+const spStyles = UI.createStyles({
+  grow: {flexGrow: 1},
+})
+const Spacer = UI.withStyles(spStyles)(({classes} :UI.WithStyles<typeof spStyles>) =>
+  <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>)
+
+const tagStyles = (theme :UI.Theme) => UI.createStyles({
+  chip: {margin: theme.spacing.unit/2}
+})
+interface TagProps extends UI.WithStyles<typeof tagStyles> {
+  tag :string
+}
+const Tag = UI.withStyles(tagStyles)(({tag, classes} :TagProps) =>
+  <UI.Chip label={tag} className={classes.chip} />)
 
 // ----------------
 // Property editors
@@ -83,7 +88,7 @@ function enumEditor (label :string, options :{value :string, label :string}[],
                      prop :IObservableValue<string>) {
   const id = `enum-${label}`
   return <UI.FormControl>
-    <UI.InputLabel htmlFor={id}>{label}</UI.InputLabel>
+    <UI.InputLabel shrink htmlFor={id}>{label}</UI.InputLabel>
     <UI.Select native inputProps={{name: 'type', id}} value={prop.get()}
                onChange={ev => prop.set(ev.target.value)}>
       {options.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
@@ -106,26 +111,40 @@ function boolEditor (label :string, prop :IObservableValue<boolean>, cells :UI.G
 // -------------
 // Journal views
 
+const evProps = (theme :UI.Theme) => UI.createStyles({
+  tagEditor: {marginLeft: theme.spacing.unit},
+})
+
+interface EVProps extends UI.WithStyles<typeof evProps> {
+  store :S.EntryStore
+}
+
 @observer
-class EntryView extends React.Component<{store :S.EntryStore}> {
+class EntryViewRaw extends React.Component<EVProps> {
 
   render () {
-    const store = this.props.store
-    const editing = store.editText !== undefined
+    const {store, classes} = this.props
     const buttons :JSX.Element[] = [
       U.menuButton("menu", Icons.menu, () => store.showMenu = !store.showMenu)
     ]
     if (store.showMenu) this.addMenuButtons(buttons)
+    const textProp = store.entry.text.editValue
+    const tagsProp = store.entry.tags.editValue
     return (
       <UI.ListItem disableGutters>
         {buttons}
-        {store.editText === undefined ?
-          <UI.ListItemText primary={store.entry.text}
-                           onClick={ev => ev.shiftKey && store.startEdit()} /> :
-          <UI.Input autoFocus value={store.editText} fullWidth
-                 onChange={ev => store.editText = ev.currentTarget.value}
-                 onKeyDown={ev => store.handleEdit(ev.key)} />}
-        {editing && U.menuButton("done", Icons.done, () => store.commitEdit())}
+        {store.editing ?
+          <UI.Input fullWidth autoFocus value={textProp.get()}
+                    onChange={ev => textProp.set(ev.currentTarget.value)}
+                    onKeyDown={ev => store.handleEdit(ev.key)} /> :
+          <UI.ListItemText primary={store.entry.text.value}
+                           onClick={ev => ev.shiftKey && store.startEdit()} />}
+        {store.editing ?
+          <UI.Input value={tagsProp.get() || ""} placeholder="Tags" className={classes.tagEditor}
+                    onChange={ev => tagsProp.set(ev.currentTarget.value)}
+                    onKeyDown={ev => store.handleEdit(ev.key)} /> :
+         store.entry.tags.value.map(tag => <Tag key={tag} tag={tag} />)}
+        {store.editing && U.menuButton("done", Icons.done, () => store.commitEdit())}
      </UI.ListItem>
     )
   }
@@ -134,12 +153,21 @@ class EntryView extends React.Component<{store :S.EntryStore}> {
     const {store} = this.props
     buttons.push(U.menuButton("up", Icons.up, () => store.moveItem(-1)))
     buttons.push(U.menuButton("down", Icons.down, () => store.moveItem(1)))
+    buttons.push(U.menuButton("edit", Icons.edit, () => store.startEdit()))
     buttons.push(U.menuButton("delete", Icons.trash, () => store.deleteItem()))
   }
 }
+const EntryView = UI.withStyles(evProps)(EntryViewRaw)
 
 const jvStyles = UI.createStyles({
-  addText: {
+  white: {
+    color: "white"
+  },
+  whiteUnderlined: {
+    color: "white",
+    borderBottom: "1px solid white"
+  },
+  footText: {
     flexGrow: 1,
     color: "white",
     borderBottom: "1px solid white"
@@ -147,86 +175,105 @@ const jvStyles = UI.createStyles({
 })
 
 interface JVProps extends UI.WithStyles<typeof jvStyles> {
-  store :S.JournumStore
+  store :S.JournalStore
 }
 
 @observer
-class JournumViewRaw extends React.Component<JVProps> {
+class JournalViewRaw extends React.Component<JVProps> {
 
   render () {
     const {store} = this.props, journum = store.current, entries = store.entries
-    return <UI.List>
-      <UI.ListItem disableGutters>
-        {U.menuButton("today", <Icons.Today />, () => store.goToday())}
-        {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollDate(-1))}
-        <UI.Typography variant="h6" color="inherit">
-          {U.formatDate(store.currentDate)}
-        </UI.Typography>
-        {U.menuButton("next", <Icons.ArrowRight />, () => store.rollDate(+1))}
-        {store.pickingDate ?
-        <UI.TextField autoFocus color="inherit" type="date" value={store.pickingDate}
-          onChange={ev => store.updatePick(ev.currentTarget.value)}
-          onBlur={ev => store.commitPick()} /> :
-        U.menuButton("pick", <Icons.CalendarToday />, () => store.startPick())}
-        <Spacer />
-      </UI.ListItem>
-      {journum === undefined ? textListItem("Loading...") :
-       entries.length === 0 ? textListItem("No entries...") :
-       entries.map((es, ii) => <EntryView key={ii} store={es} />)}
-    </UI.List>
+    switch (store.mode) {
+    case "current":
+      return <UI.List>
+        <UI.ListItem disableGutters>
+          {U.menuButton("today", <Icons.Today />, () => store.goToday())}
+          {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollDate(-1))}
+          <UI.Typography variant="h6" color="inherit">
+            {U.formatDate(store.currentDate)}
+          </UI.Typography>
+          {U.menuButton("next", <Icons.ArrowRight />, () => store.rollDate(+1))}
+          {store.pickingDate ?
+          <UI.TextField autoFocus color="inherit" type="date" value={store.pickingDate}
+            onChange={ev => store.updatePick(ev.currentTarget.value)}
+            onBlur={ev => store.commitPick()} /> :
+          U.menuButton("pick", <Icons.CalendarToday />, () => store.startPick())}
+          <Spacer />
+        </UI.ListItem>
+        {journum === undefined ? textListItem("Loading...") :
+         entries.length === 0 ? textListItem("No entries...") :
+         entries.map(es => <EntryView key={es.key} store={es} />)}
+      </UI.List>
+    case "history":
+      return store.history.sortedItems.map(jm => {
+        const filtered = store.historyEntries(jm).filter(es => es.entry.matches(store.histFilter))
+        return filtered.length === 0 ? undefined : <UI.List key={jm.date}>
+          <UI.ListItem key="header" disableGutters>
+            <UI.IconButton color="inherit"><Icons.Today /></UI.IconButton>
+            <UI.Typography variant="h6" color="inherit">
+              {U.formatDate(new Date(jm.midnight))}
+            </UI.Typography>
+          </UI.ListItem>
+          {filtered.map(es => <EntryView key={es.key} store={es} />)}
+        </UI.List>
+      })
+    }
   }
 }
-export const JournumView = UI.withStyles(jvStyles)(JournumViewRaw)
+export const JournalView = UI.withStyles(jvStyles)(JournalViewRaw)
 
 @observer
-class JournumFooterRaw extends React.Component<JVProps> {
+class JournalFooterRaw extends React.Component<JVProps> {
 
   render () {
     const {store, classes} = this.props,  haveJournum = store.current !== undefined
-    return <UI.Toolbar>
-      <UI.Typography style={{marginLeft: 8, marginRight: 8}} variant="h6" color="inherit">
-        Add:</UI.Typography>
-      <UI.Input type="text" className={classes.addText} placeholder="Journal Entry"
-                value={store.newEntry} disableUnderline={true}
-                onChange={ev => store.newEntry = ev.currentTarget.value}
-                onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
-      <UI.IconButton color="inherit" aria-label="Menu" disabled={!haveJournum}
-        onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
-    </UI.Toolbar>
-  }
+    const modeSelect = <UI.FormControl style={{marginRight: 8}}>
+        <UI.Select className={classes.whiteUnderlined} classes={{icon: classes.white}}
+                   value={store.mode} disableUnderline={true}
+                   onChange={ev => store.mode = ev.target.value as S.JournalMode}>
+        <UI.MenuItem value="current">Current</UI.MenuItem>
+        <UI.MenuItem value="history">History</UI.MenuItem>
+      </UI.Select>
+    </UI.FormControl>
 
-  addNewEntry () {
-    const store = this.props.store
-    if (store.newEntry.length === 0 || !store.current) return // TODO: ugh
-    store.current.addEntry(store.newEntry)
-    store.newEntry = ""
+    switch (store.mode) {
+    case "current":
+      return <UI.Toolbar>
+        {modeSelect}
+        <UI.Typography style={{marginLeft: 8, marginRight: 8}} variant="h6" color="inherit">
+          Add:</UI.Typography>
+        <UI.Input type="text" className={classes.footText} placeholder="Journal Entry"
+                  value={store.newEntry} disableUnderline={true}
+                  onChange={ev => store.newEntry = ev.currentTarget.value}
+                  onKeyPress={ev => { if (ev.key === "Enter") store.addEntry() }} />
+        <UI.IconButton color="inherit" disabled={!haveJournum}
+          onClick={() => store.addEntry()}><Icons.Add /></UI.IconButton>
+      </UI.Toolbar>
+    case "history":
+      return <UI.Toolbar>
+        {modeSelect}
+        {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollHistYear(-1))}
+        <UI.Typography variant="h6" color="inherit">{String(store.histYear)}</UI.Typography>
+        {U.menuButton("next", <Icons.ArrowRight />, () => store.rollHistYear(1))}
+        {footText("Filter:")}
+        <UI.Input type="text" className={classes.footText}
+                  value={store.histFilterPend} disableUnderline={true}
+                  onChange={ev => store.setHistFilter(ev.currentTarget.value)}
+                  onKeyPress={ev => { if (ev.key === "Enter") store.applyHistFilter() }} />
+      </UI.Toolbar>
+    }
   }
 }
-export const JournumFooter = UI.withStyles(jvStyles)(JournumFooterRaw)
+export const JournalFooter = UI.withStyles(jvStyles)(JournalFooterRaw)
 
 // ---------
 // Item view
 
-const tagStyles = (theme :UI.Theme) => UI.createStyles({
-  chip: {
-    margin: theme.spacing.unit/2,
-  }
-})
-interface TagProps extends UI.WithStyles<typeof tagStyles> {
-  tag :string
-}
-class TagRaw extends React.Component<TagProps> {
-  render () {
-    return <UI.Chip label={this.props.tag} className={this.props.classes.chip} />
-  }
-}
-const Tag = UI.withStyles(tagStyles)(TagRaw)
-
 function addSecondary (have :string|void, label :string, text :string|void) :string|void {
   if (!have && !text) return undefined
-  else if (!have) return `(${label}: ${text})`
+  else if (!have) return `(${label} ${text})`
   else if (!text) return have
-  else `${have} (${label}: ${text})`
+  else `${have} (${label} ${text})`
 }
 
 const RatingEmoji = ["😴", "🤮", "😒", "😐", "🙂","😍"]
@@ -301,9 +348,11 @@ class ItemEditDialogRaw extends React.Component<IEDProps> {
     const fullScreen = (this.props as any).fullScreen // yay for bullshit CSS & type shenanigans
     const ditems :JSX.Element[] = []
     this.props.itemsFn(ditems)
+    ditems.push(<UI.Grid key="created" item xs={12}>
+                  <UI.Typography>Created: {store.item.created.toDate().toLocaleString()}</UI.Typography>
+                </UI.Grid>)
     return (
-      <UI.Dialog key="edit-dialog" aria-labelledby="edit-dialog-title"
-                 fullWidth fullScreen={fullScreen}
+      <UI.Dialog key="edit-dialog" fullWidth fullScreen={fullScreen}
                  open={store.editing} onClose={ev => store.cancelEdit()}>
         <UI.DialogTitle id="edit-dialog-title">Edit</UI.DialogTitle>
         <UI.DialogContent>
@@ -457,7 +506,7 @@ class WatchView extends ItemView {
   get item () :M.Watch { return this.props.store.item as M.Watch }
   protected get primaryText () :string { return this.item.title.value }
   protected get secondaryText () :string|void {
-    return addSecondary(this.item.director.value, "rec", this.item.recommender.value)
+    return addSecondary(this.item.director.value, "via", this.item.recommender.value)
   }
 
   protected get rating () :number|void {
@@ -522,7 +571,7 @@ class HearView extends ItemView {
   get item () :M.Hear { return this.props.store.item as M.Hear }
   protected get primaryText () :string { return this.item.title.value }
   protected get secondaryText () :string|void {
-    return addSecondary(this.item.artist.value, "rec", this.item.recommender.value)
+    return addSecondary(this.item.artist.value, "via", this.item.recommender.value)
   }
 
   protected get rating () :number|void {
@@ -590,7 +639,7 @@ class PlayView extends ItemView {
   protected get primaryText () :string { return this.item.title.value }
   protected get secondaryText () :string|void {
     return addSecondary(PlatformToName.get(this.item.platform.value),
-                        "rec", this.item.recommender.value)
+                        "via", this.item.recommender.value)
   }
 
   protected get rating () :number|void {
@@ -600,7 +649,7 @@ class PlayView extends ItemView {
   protected badges () :JSX.Element[] {
     const badges = super.badges()
     if (this.item.credits.value) badges.unshift(
-      <UI.Typography key="rating" variant="h6">{SawCreditsEmoji}</UI.Typography>)
+      <UI.Typography key="credits" variant="h6">{SawCreditsEmoji}</UI.Typography>)
     return badges
   }
 
@@ -650,7 +699,7 @@ class DineView extends ItemView {
   get item () :M.Dine { return this.props.store.item as M.Dine }
   protected get primaryText () :string { return this.item.name.value }
   protected get secondaryText () :string|void {
-    return addSecondary(this.item.location.value, "rec", this.item.recommender.value)
+    return addSecondary(this.item.location.value, "via", this.item.recommender.value)
   }
 
   protected get rating () :number|void {
@@ -822,9 +871,6 @@ class ItemsFooterRaw extends React.Component<IVProps> {
       </UI.Select>
     </UI.FormControl>
 
-    const footText = (text :string) =>
-      <UI.Typography style={{marginRight: 8}} variant="h6" color="inherit">{text}</UI.Typography>
-
     switch (store.mode) {
     case "current":
       return <UI.Toolbar>
@@ -834,7 +880,7 @@ class ItemsFooterRaw extends React.Component<IVProps> {
                   value={store.newItem} disabled={!store} disableUnderline={true}
                   onChange={ev => store.newItem = ev.currentTarget.value}
                   onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
-        <UI.IconButton color="inherit" aria-label="Menu" disabled={!store}
+        <UI.IconButton color="inherit" disabled={!store}
           onClick={() => this.addNewEntry()}><Icons.Add /></UI.IconButton>
       </UI.Toolbar>
     case "history":
@@ -843,10 +889,7 @@ class ItemsFooterRaw extends React.Component<IVProps> {
         {footText("Filter:")}
         <UI.Input type="text" className={classes.footText} disabled={store.history.pending}
                   value={store.histFilterPend} disableUnderline={true}
-                  onChange={ev => {
-                    store.histFilterPend = ev.currentTarget.value
-                    setTimeout(() => store.applyHistFilter(), 200)
-                  }}
+                  onChange={ev => store.setHistFilter(ev.currentTarget.value)}
                   onKeyPress={ev => { if (ev.key === "Enter") store.applyHistFilter() }} />
       </UI.Toolbar>
     case "bulk":
@@ -860,10 +903,7 @@ class ItemsFooterRaw extends React.Component<IVProps> {
         <UI.Typography variant="h6" color="inherit">Bulk import:</UI.Typography>
         <UI.TextField value={store.legacyData}
                       onChange={ev => store.legacyData = ev.currentTarget.value} />
-        <UI.Button color="inherit" onClick={ev => {
-          store.importLegacy(store.legacyData)
-          store.legacyData = ""
-        }}>Submit</UI.Button>
+        <UI.Button color="inherit" onClick={ev => store.importLegacy()}>Submit</UI.Button>
       </UI.Toolbar>
     }
   }

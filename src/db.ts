@@ -1,40 +1,74 @@
-import { observable, transaction } from "mobx"
+import { observable } from "mobx"
 import * as firebase from "firebase"
 import * as M from "./model"
 import * as U from "./util"
 
-type Ref = firebase.firestore.DocumentReference
-type Data = firebase.firestore.DocumentData
 type ColRef = firebase.firestore.CollectionReference
+type Data = firebase.firestore.DocumentData
+type Query = firebase.firestore.Query
+type Ref = firebase.firestore.DocumentReference
+const Timestamp = firebase.firestore.Timestamp
 
-export class Items {
+abstract class QueryResult<T> {
   private _unsubscribe = () => {}
 
   @observable pending = true
-  @observable items :M.Item[] = []
+  @observable items :T[] = []
 
-  constructor (readonly query :firebase.firestore.Query,
-               decoder :(ref :Ref, data :Data) => M.Item,
-               sortComp :(a :M.Item, b :M.Item) => number) {
+  get sortedItems () :T[] {
+    const items = this.items.slice()
+    items.sort(this.sortComp)
+    return items
+  }
+
+  constructor (query :Query, readonly sortComp :(a :T, b :T) => number) {
     this._unsubscribe = query.onSnapshot(snap => {
-      let newItems :M.Item[] = []
-      // TODO: track by key, re-read existing items, create new, toss old
-      snap.forEach(doc => {
-        const data = doc.data()
-        const item = decoder(doc.ref, data)
-        item.read(data)
-        newItems.push(item)
+      snap.docChanges().forEach(change => {
+        const data = change.doc.data()
+        switch (change.type) {
+        case "added":
+          // console.log(`Adding item @ ${change.newIndex}: ${change.doc.ref.id} :: ${JSON.stringify(data)}`)
+          this.items.splice(change.newIndex, 0, this.newEntry(change.doc.ref, data))
+          break
+        case "modified":
+          // console.log(`Updating item @ ${change.newIndex}: ${change.doc.ref.id} :: ${JSON.stringify(data)}`)
+          this.updateEntry(this.items[change.newIndex], change.doc.ref, data)
+          break
+        case "removed":
+          // console.log(`Removing item @ ${change.oldIndex}: ${change.doc.ref.id}`)
+          this.items.splice(change.oldIndex, 1)
+        }
       })
-      newItems.sort(sortComp)
-      transaction(() => {
-        this.pending = false
-        this.items = newItems
-      })
+      this.pending = false
     })
   }
 
+  protected abstract newEntry (ref :Ref, data :Data) :T
+  protected abstract updateEntry (entry :T, ref :Ref, newData :Data) :void
+
   close () {
     this._unsubscribe()
+  }
+}
+
+export class Items extends QueryResult<M.Item> {
+
+  constructor (query :Query, sortComp :(a :M.Item, b :M.Item) => number,
+               readonly decoder :(ref :Ref, data :Data) => M.Item) {
+    super(query, sortComp)
+  }
+
+  protected newEntry (ref :Ref, data :Data) :M.Item {
+    // newly added items have a null created timestamp, so fill it in
+    if (!data.created) data.created = Timestamp.now()
+    // console.log(`Adding item @ ${change.newIndex}: ${change.doc.ref.id} :: ${JSON.stringify(data)}`)
+    const item = this.decoder(ref, data)
+    item.read(data)
+    return item
+  }
+
+  protected updateEntry (item :M.Item, ref :Ref, newData :Data) {
+    item.read(newData)
   }
 }
 
@@ -56,14 +90,14 @@ export class ItemCollection {
                    this.col.where("completed", ">=", `${completionYear}-01-01`).
                             where("completed", "<", `${completionYear+1}-01-01`))
     const sorter = completionYear === undefined ? ByCreated : ByCompleted
-    return new Items(query, this.decoder, sorter)
+    return new Items(query, sorter, this.decoder)
   }
 
   completed () :Items {
-    return new Items(this.completedQuery, this.decoder, ByCompleted)
+    return new Items(this.completedQuery, ByCompleted, this.decoder)
   }
   recentCompleted () :Items {
-    return new Items(this.completedQuery.limit(5), this.decoder, ByCompleted)
+    return new Items(this.completedQuery.limit(5), ByCompleted, this.decoder)
   }
   private get completedQuery () {
     console.log(`Loading completed: ${this.name}...`)
@@ -74,6 +108,22 @@ export class ItemCollection {
     if (!data.completed) data.completed = null
     const docref = await this.col.add(data)
     return this.decoder(docref, data)
+  }
+}
+
+export class Annum extends QueryResult<M.Journum> {
+
+  constructor (journal :ColRef, readonly year :number) {
+    super(journal.where("date", ">=", `${year}-01-01`)
+                       .where("date", "<", `${year+1}-01-01`),
+          (a, b) => b.date.localeCompare(a.date))
+  }
+
+  protected newEntry (ref :Ref, data :Data) :M.Journum {
+    return new M.Journum(ref, data, false)
+  }
+  protected updateEntry (entry :M.Journum, ref :Ref, newData :Data) {
+    entry.read(newData)
   }
 }
 
@@ -130,5 +180,9 @@ export class DB {
       console.log(`Failed to load journal [uid=${this.uid}, ref=${ref.path}, date=${dstamp}]`, error)
       throw new Error(`Database error`)
     }
+  }
+
+  journalYear (year :number) :Annum {
+    return new Annum(this.userCollection("journal"), year)
   }
 }

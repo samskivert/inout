@@ -22,12 +22,91 @@ function updateRef (ref :Ref, data :Data) {
 
 type PropKey = string|number|symbol
 
+function isEmptyArray (value :any) :boolean {
+  return Array.isArray(value) && value.length === 0
+}
+
 function syncRef (ref :Ref, prop :PropKey, refprop :PropKey, newValue :any) {
   console.log(`Syncing ${String(prop)} = '${newValue}' (to ${String(refprop)})`)
-  updateRef(ref, {[refprop]: newValue === undefined ? DeleteValue : newValue})
+  const upValue = (newValue === undefined || isEmptyArray(newValue)) ? DeleteValue : newValue
+  updateRef(ref, {[refprop]: upValue})
+}
+
+abstract class Prop<T> {
+  get value () :T { return this.syncValue.get() }
+  abstract get name () :string
+  abstract get syncValue () :IObservableValue<T>
+  abstract read (data :Data) :void
+  abstract write (data :Data) :void
+  abstract startEdit () :void
+  abstract commitEdit () :void
+}
+
+function readProp (data :Data, prop :string) :any {
+  const dotidx = prop.indexOf(".")
+  if (dotidx == -1) return data[prop]
+  else return readProp(data[prop.substring(0, dotidx)], prop.substring(dotidx+1))
+}
+
+function writeProp (data :Data, prop :string, value :any) {
+  const dotidx = prop.indexOf(".")
+  if (dotidx == -1) data[prop] = value
+  else writeProp(data[prop.substring(0, dotidx)], prop.substring(dotidx+1), value)
+}
+
+class SimpleProp<T> extends Prop<T> {
+  syncValue :IObservableValue<T>
+  editValue :IObservableValue<T>
+
+  constructor (readonly name :string, defval :T) {
+    super()
+    this.syncValue = observable.box(defval)
+    this.editValue = observable.box(defval)
+  }
+
+  read (data :Data) {
+    this.syncValue.set(readProp(data, this.name))
+  }
+  write (data :Data) {
+    writeProp(data, this.name, this.value)
+  }
+  startEdit () {
+    this.editValue.set(this.value)
+  }
+  commitEdit () {
+    this.syncValue.set(this.editValue.get())
+  }
+}
+
+function splitTags (text :string) :string[] {
+  return text.split(" ").map(tag => tag.trim()).filter(tag => tag.length > 0)
+}
+
+class TagsProp extends Prop<string[]> {
+  syncValue :IObservableValue<string[]> = observable.box([])
+  editValue :IObservableValue<string> = observable.box("")
+
+  constructor (readonly name :string = "tags") { super() }
+
+  read (data :Data) {
+    this.syncValue.set(readProp(data, this.name) || [])
+  }
+  write (data :Data) {
+    writeProp(data, this.name, this.value)
+  }
+  startEdit () {
+    this.editValue.set(this.value.join(" "))
+  }
+  commitEdit () {
+    const tags = this.editValue.get()
+    const newValue = tags ? splitTags(tags) : []
+    // annoyingly setting a []-valued prop to [] triggers a reaction... ugh JavaScript
+    if (!isEmptyArray(newValue) || !isEmptyArray(this.value)) this.syncValue.set(newValue)
+  }
 }
 
 abstract class Doc {
+  protected readonly props :Prop<any>[] = []
   protected _syncing = true
 
   constructor (readonly ref :Ref, data :Data) {}
@@ -45,68 +124,36 @@ abstract class Doc {
     this._syncing = true
   }
 
-  protected abstract readProps (data :Data) :void
+  newProp<T> (name :string, defval :T) {
+    return this.addProp(new SimpleProp(name, defval))
+  }
+
+  addProp<T,P extends Prop<T>> (prop :P) :P {
+    prop.syncValue.observe(change => {
+      if (this._syncing) syncRef(this.ref, prop.name, prop.name, change.newValue)
+    })
+    this.props.push(prop)
+    return prop
+  }
+
+  removeProp<T> (prop :Prop<T>) {
+    const idx = this.props.indexOf(prop)
+    if (idx >= 0) this.props.splice(idx, 1)
+  }
+
+  startEdit () {
+    for (let prop of this.props) prop.startEdit()
+  }
+  commitEdit () {
+    for (let prop of this.props) prop.commitEdit()
+  }
+
+  protected readProps (data :Data) {
+    for (let prop of this.props) prop.read(data)
+  }
 }
 
 // Input model
-
-abstract class Prop<T> {
-  get value () :T { return this.syncValue.get() }
-  abstract get name () :string
-  abstract get syncValue () :IObservableValue<T>
-  abstract read (data :Data) :void
-  abstract write (data :Data) :void
-  abstract startEdit () :void
-  abstract commitEdit () :void
-}
-
-class SimpleProp<T> extends Prop<T> {
-  syncValue :IObservableValue<T>
-  editValue :IObservableValue<T>
-
-  constructor (readonly name :string, defval :T) {
-    super()
-    this.syncValue = observable.box(defval)
-    this.editValue = observable.box(defval)
-  }
-
-  read (data :Data) {
-    this.syncValue.set(data[this.name])
-  }
-  write (data :Data) {
-    data[this.name] = this.value
-  }
-  startEdit () {
-    this.editValue.set(this.value)
-  }
-  commitEdit () {
-    this.syncValue.set(this.editValue.get())
-  }
-}
-
-function splitTags (text :string) :string[] {
-  return text.split(" ").map(tag => tag.trim()).filter(tag => tag.length > 0)
-}
-
-class TagsProp extends Prop<string[]> {
-  get name () :string { return "tags" }
-  syncValue :IObservableValue<string[]> = observable.box([])
-  editValue :IObservableValue<string> = observable.box("")
-
-  read (data :Data) {
-    this.syncValue.set(data.tags || [])
-  }
-  write (data :Data) {
-    data.tags = this.value
-  }
-  startEdit () {
-    this.editValue.set(this.value.join(" "))
-  }
-  commitEdit () {
-    const tags = this.editValue.get()
-    this.syncValue.set(tags ? splitTags(tags) : [])
-  }
-}
 
 export enum ItemType {
   READ = "read", WATCH = "watch", HEAR = "hear", PLAY = "play",
@@ -117,8 +164,6 @@ function checkMatch (text :string|void, seek :string) {
 }
 
 export abstract class Item extends Doc {
-  protected readonly props :Prop<any>[] = []
-
   readonly created :firebase.firestore.Timestamp
   readonly tags = this.addProp(new TagsProp())
   readonly link = this.newProp<URL|void>("link", undefined)
@@ -135,31 +180,6 @@ export abstract class Item extends Doc {
   matches (seek :string) {
     return (this.tags.value.some(tag => tag.toLowerCase() === seek) ||
             checkMatch(this.link.value, seek))
-  }
-
-  startEdit () {
-    for (let prop of this.props) prop.startEdit()
-  }
-  commitEdit () {
-    for (let prop of this.props) prop.commitEdit()
-  }
-
-  protected readProps (data :Data) {
-    for (let prop of this.props) {
-      prop.read(data)
-    }
-  }
-
-  protected newProp<T> (name :string, defval :T) {
-    return this.addProp(new SimpleProp(name, defval))
-  }
-
-  protected addProp<T,P extends Prop<T>> (prop :P) :P {
-    prop.syncValue.observe(change => {
-      if (this._syncing) syncRef(this.ref, prop.name, prop.name, change.newValue)
-    })
-    this.props.push(prop)
-    return prop
   }
 }
 
@@ -264,7 +284,8 @@ export class Dine extends Consume {
 export class Journum extends Doc {
   private _unsubscribe = () => {}
 
-  readonly date :Date
+  readonly date :Stamp
+  readonly midnight :number
   @observable order :string[] = []
 
   @computed get entries () :Entry[] {
@@ -275,17 +296,17 @@ export class Journum extends Doc {
 
   readonly entryMap :Map<string,Entry> = new Map()
 
-  constructor (ref :Ref, data :Data) {
+  constructor (ref :Ref, data :Data, live :boolean = true) {
     super(ref, data)
-    console.log(`Subscribing to doc: ${this.ref.id}`)
-    this._unsubscribe = this.ref.onSnapshot(doc => {
-      console.log(`Doc updated: ${this.ref.id}`)
-      this.read(doc.data() || {})
-    })
-
-    const date = fromStamp(data.date)
-    if (!date) throw new Error(`Invalid journum date: '${data.date}'`)
-    this.date = date
+    this.date = data.date
+    this.midnight = (fromStamp(this.date) || new Date()).getTime()
+    if (live) {
+      console.log(`Subscribing to doc: ${this.ref.id}`)
+      this._unsubscribe = this.ref.onSnapshot(doc => {
+        console.log(`Doc updated: ${this.ref.id}: ${JSON.stringify(doc.data())}`)
+        this.read(doc.data() || {})
+      })
+    } else this.read(data)
     // `order` syncing is handled manually as we add/remove/move entries
   }
 
@@ -300,32 +321,38 @@ export class Journum extends Doc {
     for (let key of dataKeys) {
       let edata = data.entries[key]
       let entry = emap.get(key)
-      if (entry) entry.read(edata)
-      else emap.set(key, new Entry(this, key, edata))
+      if (!entry) emap.set(key, new Entry(this, key, edata))
     }
 
     // prune removed entries and sanitize `order`
     let order = ((data.order || []) as string[]).filter(key => emap.has(key))
     const okeys = new Set(order)
     for (let key of Array.from(emap.keys())) {
-      if (!dataKeys.has(key)) emap.delete(key)
+      if (!dataKeys.has(key)) {
+        const oentry = emap.get(key)
+        oentry && oentry.deleted()
+        emap.delete(key)
+      }
       else if (!okeys.has(key)) order.push(key)
     }
+
+    // read our entry props
+    super.readProps(data)
 
     // finally update order which will trigger a rebuild of our entries view
     this.order = order
   }
 
-  addEntry (text :string) {
+  addEntry (text :string, tags :string[]) {
     // we use seconds since midnight on this entry's date as a "mostly" unique key; since only one
     // user is likely to be adding to a journal, the only way they're likely to "conflict" with
     // themselves is by adding entries from device A, which is offline, then adding them from device
     // B which is online and later bringing device A online; since entry keys are picked based on
     // wall time, they're unlikely to conflict; note: if they add to future dates, they get negative
     // keys, whatevs!
-    let secsSince = Math.round((new Date().getTime() - this.date.getTime())/1000)
+    let secsSince = Math.round((new Date().getTime() - this.midnight)/1000)
     let key = String(secsSince)
-    let edata = {text}
+    let edata = tags.length > 0 ? {text, tags} : {text}
     this.entryMap.set(key, new Entry(this, key, edata))
     this.order.push(key)
     updateRef(this.ref, {[`entries.${key}`]: edata, "order": toJS(this.order)})
@@ -361,17 +388,31 @@ export class Journum extends Doc {
 
 export class Entry {
   readonly item :ID|void
-  readonly tags :string[]
-  @observable text :string = ""
+  readonly text :SimpleProp<string>
+  readonly tags :TagsProp
 
-  constructor (owner :Journum, readonly key :string, data :Data) {
+  constructor (readonly owner :Journum, readonly key :string, data :Data) {
     this.item = data.item
-    this.tags = data.tags || []
-    this.read(data)
-    owner.noteSync(this, "text", `entries.${key}.text`)
+    this.text = owner.newProp(`entries.${key}.text`, "")
+    this.tags = owner.addProp(new TagsProp(`entries.${key}.tags`))
   }
 
-  read (data :Data) {
-    this.text = data.text
+  startEdit () {
+    this.text.startEdit()
+    this.tags.startEdit()
+  }
+  commitEdit () {
+    this.text.commitEdit()
+    this.tags.commitEdit()
+  }
+
+  matches (seek :string) :boolean {
+    return (this.text.value.toLowerCase().includes(seek) ||
+            this.tags.value.some(tag => tag.toLowerCase() === seek))
+  }
+
+  deleted () {
+    this.owner.removeProp(this.text)
+    this.owner.removeProp(this.tags)
   }
 }
