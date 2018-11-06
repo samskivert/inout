@@ -214,18 +214,26 @@ class JournalViewRaw extends React.Component<JVProps> {
          entries.map(es => <EntryView key={es.key} store={es} />)}
       </UI.List>
     case "history":
-      return store.history.sortedItems.map(jm => {
-        const filtered = store.historyEntries(jm).filter(es => es.entry.matches(store.histFilter))
-        return filtered.length === 0 ? undefined : <UI.List key={jm.date}>
+      const dates :JSX.Element[] = []
+      for (let jm of store.history.sortedItems) {
+        const filter = M.makeFilter(store.histFilter)
+        const filtered = jm.entries.filter(entry => entry.matches(filter))
+        if (filtered.length > 0) dates.push(<UI.List key={jm.date}>
           <UI.ListItem key="header" disableGutters>
             <UI.IconButton color="inherit"><Icons.Today /></UI.IconButton>
             <UI.Typography variant="h6" color="inherit">
               {U.formatDate(new Date(jm.midnight))}
             </UI.Typography>
           </UI.ListItem>
-          {filtered.map(es => <EntryView key={es.key} store={es} />)}
-        </UI.List>
-      })
+          {filtered.map(entry => <UI.ListItem>
+             <UI.ListItemText primary={entry.text.value} />
+             {entry.tags.value.map(tag => <Tag key={tag} tag={tag} />)}
+           </UI.ListItem>)}
+         </UI.List>)
+      }
+      if (dates.length === 0) dates.push(
+        <UI.List key="nomatch">{textListItem(`No matches of '${store.histFilter}'`)}</UI.List>)
+      return dates
     }
   }
 }
@@ -842,7 +850,8 @@ class ItemsViewRaw extends React.Component<IVProps> {
       if (store.history.pending) {
         entries.push(loadingItem())
       } else {
-        const stores = store.historyStores.filter(item => item.item.matches(store.histFilter))
+        const filter = M.makeFilter(store.histFilter)
+        const stores = store.historyStores.filter(item => item.item.matches(filter))
         if (stores.length == 0) {
           entries.push(listTitle(ui.doneTitle))
           const text = store.histFilter ? `nothing matches '${store.histFilter}'` : "nothing"

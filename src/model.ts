@@ -105,6 +105,13 @@ class TagsProp extends Prop<string[]> {
   }
 }
 
+type Filter = (text :string|void) => boolean
+export function makeFilter (seek :string) :Filter {
+  if (seek === "") return text => true
+  else if (seek.toLowerCase() !== seek) return text => text ? text.includes(seek) : false
+  else return text => text ? (text.toLowerCase().includes(seek)) : false
+}
+
 abstract class Doc {
   protected readonly props :Prop<any>[] = []
   protected _syncing = true
@@ -159,10 +166,6 @@ export enum ItemType {
   READ = "read", WATCH = "watch", HEAR = "hear", PLAY = "play",
   DINE ="dine", BUILD = "build"/*, DO = "do"*/ }
 
-function checkMatch (text :string|void, seek :string) {
-  return text && text.toLowerCase().includes(seek)
-}
-
 export abstract class Item extends Doc {
   readonly created :firebase.firestore.Timestamp
   readonly tags = this.addProp(new TagsProp())
@@ -177,9 +180,8 @@ export abstract class Item extends Doc {
     this.created = data.created
   }
 
-  matches (seek :string) {
-    return (this.tags.value.some(tag => tag.toLowerCase() === seek) ||
-            checkMatch(this.link.value, seek))
+  matches (filter :Filter) {
+    return this.tags.value.some(tag => filter(tag)) || filter(this.link.value)
   }
 }
 
@@ -188,8 +190,8 @@ export class Build extends Item {
   readonly started = this.newProp<Stamp|void>("started", undefined)
   get startedProp () :Prop<Stamp|void>|void { return this.started }
 
-  matches (text :string) {
-    return super.matches(text) || checkMatch(this.text.value, text)
+  matches (filter :Filter) {
+    return super.matches(filter) || filter(this.text.value)
   }
 }
 
@@ -204,8 +206,8 @@ export abstract class Consume extends Item {
   readonly rating = this.newProp<Rating>("rating", "none")
   readonly recommender = this.newProp<string|void>("recommender", undefined)
 
-  matches (text :string) {
-    return super.matches(text) || checkMatch(this.recommender.value, text)
+  matches (filter :Filter) {
+    return super.matches(filter) || filter(this.recommender.value)
   }
 }
 
@@ -218,10 +220,8 @@ export class Read extends Consume {
   get startedProp () :Prop<Stamp|void>|void { return this.started }
   readonly abandoned = this.newProp("abandoned", false)
 
-  matches (text :string) {
-    return (super.matches(text) ||
-            checkMatch(this.title.value, text) ||
-            checkMatch(this.author.value, text))
+  matches (filter :Filter) {
+    return super.matches(filter) || filter(this.title.value) || filter(this.author.value)
   }
 }
 
@@ -231,10 +231,8 @@ export class Watch extends Consume {
   readonly director = this.newProp<string|void>("director", undefined)
   readonly type = this.newProp<WatchType>("type", "film")
 
-  matches (text :string) {
-    return (super.matches(text) ||
-            checkMatch(this.title.value, text) ||
-            checkMatch(this.director.value, text))
+  matches (filter :Filter) {
+    return super.matches(filter) || filter(this.title.value) || filter(this.director.value)
   }
 }
 
@@ -244,10 +242,8 @@ export class Hear extends Consume {
   readonly artist = this.newProp<string|void>("artist", undefined)
   readonly type = this.newProp<HearType>("type", "song")
 
-  matches (text :string) {
-    return (super.matches(text) ||
-            checkMatch(this.title.value, text) ||
-            checkMatch(this.artist.value, text))
+  matches (filter :Filter) {
+    return super.matches(filter) || filter(this.title.value) || filter(this.artist.value)
   }
 }
 
@@ -262,11 +258,9 @@ export class Play extends Consume {
   // did we play through enough to see the credits?
   readonly credits = this.newProp("credits", false)
 
-  matches (seek :string) {
-    return (super.matches(seek) ||
-            checkMatch(this.title.value, seek) ||
-            checkMatch(this.platform.value, seek) ||
-            (seek == "finished" && this.credits.value))
+  matches (filter :Filter) {
+    return (super.matches(filter) || filter(this.title.value) || filter(this.platform.value) ||
+            filter(this.credits.value ? "finished" : ""))
   }
 }
 
@@ -274,8 +268,8 @@ export class Dine extends Consume {
   readonly name = this.newProp("name", "")
   readonly location = this.newProp<string|void>("location", undefined)
 
-  matches (text :string) {
-    return super.matches(text) || checkMatch(this.name.value, text)
+  matches (filter :Filter) {
+    return super.matches(filter) || filter(this.name.value)
   }
 }
 
@@ -406,9 +400,8 @@ export class Entry {
     this.tags.commitEdit()
   }
 
-  matches (seek :string) :boolean {
-    return (this.text.value.toLowerCase().includes(seek) ||
-            this.tags.value.some(tag => tag.toLowerCase() === seek))
+  matches (filter :Filter) :boolean {
+    return filter(this.text.value) || this.tags.value.some(tag => filter(tag))
   }
 
   deleted () {

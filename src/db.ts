@@ -1,4 +1,4 @@
-import { observable } from "mobx"
+import { observable, transaction } from "mobx"
 import * as firebase from "firebase"
 import * as M from "./model"
 import * as U from "./util"
@@ -23,23 +23,25 @@ abstract class QueryResult<T> {
 
   constructor (query :Query, readonly sortComp :(a :T, b :T) => number) {
     this._unsubscribe = query.onSnapshot(snap => {
-      snap.docChanges().forEach(change => {
-        const data = change.doc.data()
-        switch (change.type) {
-        case "added":
-          // console.log(`Adding item @ ${change.newIndex}: ${change.doc.ref.id} :: ${JSON.stringify(data)}`)
-          this.items.splice(change.newIndex, 0, this.newEntry(change.doc.ref, data))
-          break
-        case "modified":
-          // console.log(`Updating item @ ${change.newIndex}: ${change.doc.ref.id} :: ${JSON.stringify(data)}`)
-          this.updateEntry(this.items[change.newIndex], change.doc.ref, data)
-          break
-        case "removed":
-          // console.log(`Removing item @ ${change.oldIndex}: ${change.doc.ref.id}`)
-          this.items.splice(change.oldIndex, 1)
-        }
+      transaction(() => {
+        snap.docChanges().forEach(change => {
+          const data = change.doc.data()
+          switch (change.type) {
+          case "added":
+            // console.log(`Adding item @ ${change.newIndex}: ${change.doc.ref.id} :: ${JSON.stringify(data)}`)
+            this.items.splice(change.newIndex, 0, this.newEntry(change.doc.ref, data))
+            break
+          case "modified":
+            // console.log(`Updating item @ ${change.newIndex}: ${change.doc.ref.id} :: ${JSON.stringify(data)}`)
+            this.updateEntry(this.items[change.newIndex], change.doc.ref, data)
+            break
+          case "removed":
+            // console.log(`Removing item @ ${change.oldIndex}: ${change.doc.ref.id}`)
+            this.items.splice(change.oldIndex, 1)
+          }
+        })
+        this.pending = false
       })
-      this.pending = false
     })
   }
 
