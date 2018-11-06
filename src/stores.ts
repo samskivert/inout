@@ -52,9 +52,9 @@ export type JournalMode = "current" | "history"
 export class JournalStore {
   @observable mode :JournalMode = "current"
 
-  constructor (readonly db :DB.DB, startDate :Date) {
-    this.currentDate = startDate
-    this._setDate(startDate)
+  constructor (readonly db :DB.DB) {
+    this.currentDate = U.toStamp(new Date())
+    this._setDate(this.currentDate)
   }
 
   close () {
@@ -67,7 +67,7 @@ export class JournalStore {
   //
   // Current stuff
 
-  @observable currentDate :Date
+  @observable currentDate :U.Stamp
   @observable current :M.Journum|void = undefined
   @observable newEntry :string = ""
 
@@ -81,14 +81,14 @@ export class JournalStore {
     return []
   }
 
-  setDate (date :Date) {
-    if (U.toStamp(date) !== U.toStamp(this.currentDate)) {
+  setDate (date :U.Stamp) {
+    if (date !== this.currentDate) {
       this.currentDate = date
       this._setDate(date)
     }
   }
 
-  async _setDate (date :Date) {
+  async _setDate (date :U.Stamp) {
     if (this.current) {
       this.current.close()
       this.current = undefined
@@ -98,24 +98,23 @@ export class JournalStore {
 
   async rollDate (days :number) {
     let date = new Date(this.currentDate)
-    date.setDate(this.currentDate.getDate() + days)
+    date.setDate(date.getDate() + days)
     // this.pickingDate = undefined // also clear picking date
-    return this.setDate(date)
+    return this.setDate(U.toStamp(date))
   }
   async goToday () {
-    this.setDate(new Date())
+    this.setDate(U.toStamp(new Date()))
   }
 
   @observable pickingDate :string|void = undefined
 
   startPick () {
-    this.pickingDate = U.toStamp(this.currentDate)
+    this.pickingDate = this.currentDate
   }
   updatePick (stamp :string|void) {
     if (stamp) {
       this.pickingDate = stamp
-      const date = U.fromStamp(stamp)
-      date && this.setDate(date)
+      this.setDate(stamp)
     }
   }
   commitPick () {
@@ -432,7 +431,7 @@ export class Stores {
   items   :Map<M.ItemType, ItemsStore> = new Map()
 
   constructor (readonly db :DB.DB) {
-    this.journal = new JournalStore(db, new Date())
+    this.journal = new JournalStore(db)
   }
 
   storeFor (type :M.ItemType) {

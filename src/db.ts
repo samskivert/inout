@@ -116,8 +116,8 @@ export class ItemCollection {
 export class Annum extends QueryResult<M.Journum> {
 
   constructor (journal :ColRef, readonly year :number) {
-    super(journal.where("date", ">=", `${year}-01-01`)
-                       .where("date", "<", `${year+1}-01-01`),
+    super(journal.where("date", ">=", `${year  }-01-01`)
+                 .where("date", "<",  `${year+1}-01-01`),
           (a, b) => b.date.localeCompare(a.date))
   }
 
@@ -166,20 +166,19 @@ export class DB {
     return this.db.collection("users").doc(this.uid).collection(name)
   }
 
-  async journal (date :Date) :Promise<M.Journum> {
+  async journal (date :U.Stamp) :Promise<M.Journum> {
     console.log(`Loading journal ${date}`)
-    let dstamp = U.toStamp(date)
-    let ref = this.userCollection("journal").doc(dstamp)
+    let ref = this.userCollection("journal").doc(date)
     try {
       let doc = await ref.get()
-      let data = doc.data() || {date: dstamp, entries: {}}
+      let data = doc.data() || {date, entries: {}}
       if (!doc.exists) ref.set(data).
         then(() => console.log(`Yay, created ${ref.id}`)).
         catch(err => console.warn(`Failed to set ${ref.id}: ${err}`))
-      else console.log(`Loaded existing journum ${dstamp}: ${JSON.stringify(data)}`)
+      else console.log(`Loaded existing journum ${date}: ${JSON.stringify(data)}`)
       return new M.Journum(ref, data)
     } catch (error) {
-      console.log(`Failed to load journal [uid=${this.uid}, ref=${ref.path}, date=${dstamp}]`, error)
+      console.log(`Failed to load journal [uid=${this.uid}, ref=${ref.path}, date=${date}]`, error)
       throw new Error(`Database error`)
     }
   }

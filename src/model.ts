@@ -293,7 +293,7 @@ export class Journum extends Doc {
   constructor (ref :Ref, data :Data, live :boolean = true) {
     super(ref, data)
     this.date = data.date
-    this.midnight = (fromStamp(this.date) || new Date()).getTime()
+    this.midnight = fromStamp(this.date).getTime()
     if (live) {
       console.log(`Subscribing to doc: ${this.ref.id}`)
       this._unsubscribe = this.ref.onSnapshot(doc => {

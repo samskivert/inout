@@ -29,6 +29,10 @@ function cycleButton (options :Object, current :string,
     ev => setter(keys[(curidx+1)%keys.length])}>{options[current]}</UI.Button>
 }
 
+function text (text :string) :JSX.Element {
+  return <UI.Typography variant="h6" color="inherit">{text}</UI.Typography>
+}
+
 function footText (text :string) {
   const styles = {marginLeft: 8, marginRight: 8}
   return <UI.Typography style={styles} variant="h6" color="inherit">{text}</UI.Typography>
@@ -198,9 +202,7 @@ class JournalViewRaw extends React.Component<JVProps> {
         <UI.ListItem disableGutters>
           {U.menuButton("today", <Icons.Today />, () => store.goToday())}
           {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollDate(-1))}
-          <UI.Typography variant="h6" color="inherit">
-            {U.formatDate(store.currentDate)}
-          </UI.Typography>
+          {text(U.formatDate(store.currentDate))}
           {U.menuButton("next", <Icons.ArrowRight />, () => store.rollDate(+1))}
           {store.pickingDate ?
           <UI.TextField autoFocus color="inherit" type="date" value={store.pickingDate}
@@ -223,10 +225,11 @@ class JournalViewRaw extends React.Component<JVProps> {
           const filtered = jm.entries.filter(entry => entry.matches(filter))
           if (filtered.length > 0) {
             dates.push(<UI.ListItem key={jm.date} disableGutters>
-              <UI.IconButton color="inherit"><Icons.Today /></UI.IconButton>
-              <UI.Typography variant="h6" color="inherit">
-                {U.formatDate(new Date(jm.midnight))}
-              </UI.Typography>
+              <UI.IconButton color="inherit" onClick={ev => {
+                store.setDate(jm.date)
+                store.mode = "current"
+              }}><Icons.Today /></UI.IconButton>
+              {text(U.formatDate(jm.date))}
             </UI.ListItem>)
             for (let entry of filtered) {
               dates.push(<UI.ListItem key={`${jm.date}:${entry.key}`}>
@@ -272,7 +275,7 @@ class JournalFooterRaw extends React.Component<JFProps> {
       return <UI.Toolbar>
         {modeSelect}
         {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollHistYear(-1))}
-        <UI.Typography variant="h6" color="inherit">{String(store.histYear)}</UI.Typography>
+        {text(String(store.histYear))}
         {U.menuButton("next", <Icons.ArrowRight />, () => store.rollHistYear(1))}
         {footText("Filter:")}
         <UI.Input type="text" className={classes.footText}
@@ -374,7 +377,7 @@ class ItemEditDialogRaw extends React.Component<IEDProps> {
     const ditems :JSX.Element[] = []
     this.props.itemsFn(ditems)
     ditems.push(<UI.Grid key="created" item xs={12}>
-                  <UI.Typography>Created: {store.item.created.toDate().toLocaleString()}</UI.Typography>
+                  {text(`Created: ${store.item.created.toDate().toLocaleString()}`)}
                 </UI.Grid>)
     return (
       <UI.Dialog key="edit-dialog" fullWidth fullScreen={fullScreen}
@@ -920,8 +923,7 @@ class ItemsFooterRaw extends React.Component<IFProps> {
         {modeSelect}
         {footText("Year:")}
         {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollBulkYear(-1))}
-        <UI.Typography variant="h6" color="inherit">{
-          String(store.bulkYear || "<new>")}</UI.Typography>
+        {text(String(store.bulkYear || "<new>"))}
         {U.menuButton("next", <Icons.ArrowRight />, () => store.rollBulkYear(1))}
         <Spacer />
         {footText("Import:")}

@@ -15,7 +15,7 @@ export function toStamp (date :Date) :Stamp {
 
 const stampRE = /^([0-9]+)-([0-9]+)-([0-9]+)$/
 
-export function fromStamp (stamp :Stamp) :Date|void {
+export function fromStamp (stamp :Stamp) :Date {
   let comps = stampRE.exec(stamp)
   if (comps && comps.length === 4) {
     let year = parseInt(comps[1])
@@ -23,12 +23,14 @@ export function fromStamp (stamp :Stamp) :Date|void {
     let day = parseInt(comps[3])
     return new Date(year, month, day)
   }
+  console.warn(`Invalid date stamp: '${stamp}'`)
+  return new Date(stamp) // fallback!
 }
 
 const dateFmtOpts = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
-export function formatDate (date :Date) :string {
+export function formatDate (date :Stamp) :string {
   const locale = "en-US" // TODO: use browser locale?
-  return date.toLocaleDateString(locale, dateFmtOpts)
+  return fromStamp(date).toLocaleDateString(locale, dateFmtOpts)
 }
 
 //
