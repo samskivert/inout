@@ -252,7 +252,7 @@ export const JournalView = UI.withStyles(jvStyles)(JournalViewRaw)
 interface JFProps extends JVProps, UI.WithWidth {}
 
 const thisYear = new Date().getFullYear()
-const histYears = Array.from(new Array(thisYear-1990)).map((v, ii) => thisYear-ii)
+const histYears = Array.from(new Array(thisYear-2000)).map((v, ii) => thisYear-ii)
 
 @observer
 class JournalFooterRaw extends React.Component<JFProps> {
