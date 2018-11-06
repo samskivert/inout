@@ -182,6 +182,14 @@ export class DB {
     }
   }
 
+  async createJournal (data :Data) {
+    let dstamp = data.date
+    if (!dstamp) throw new Error(`Missing 'date' property.`)
+    console.log(`Creating journal entry: ${dstamp}`)
+    let ref = this.userCollection("journal").doc(dstamp)
+    return ref.set(data)
+  }
+
   journalYear (year :number) :Annum {
     return new Annum(this.userCollection("journal"), year)
   }

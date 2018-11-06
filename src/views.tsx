@@ -21,8 +21,17 @@ function textListItem (text :string) :JSX.Element {
   return <UI.ListItem><UI.ListItemText primary={text} /></UI.ListItem>
 }
 
+function cycleButton (options :Object, current :string,
+                      setter :(value :string) => void) :JSX.Element {
+  const keys = Object.keys(options)
+  const curidx = keys.indexOf(current)
+  return <UI.Button color="inherit" variant="outlined" onClick={
+    ev => setter(keys[(curidx+1)%keys.length])}>{options[current]}</UI.Button>
+}
+
 function footText (text :string) {
-  return <UI.Typography style={{marginRight: 8}} variant="h6" color="inherit">{text}</UI.Typography>
+  const styles = {marginLeft: 8, marginRight: 8}
+  return <UI.Typography style={styles} variant="h6" color="inherit">{text}</UI.Typography>
 }
 
 const spStyles = UI.createStyles({
@@ -222,31 +231,27 @@ class JournalViewRaw extends React.Component<JVProps> {
 }
 export const JournalView = UI.withStyles(jvStyles)(JournalViewRaw)
 
+interface JFProps extends JVProps, UI.WithWidth {}
+
 @observer
-class JournalFooterRaw extends React.Component<JVProps> {
+class JournalFooterRaw extends React.Component<JFProps> {
 
   render () {
-    const {store, classes} = this.props,  haveJournum = store.current !== undefined
-    const modeSelect = <UI.FormControl style={{marginRight: 8}}>
-        <UI.Select className={classes.whiteUnderlined} classes={{icon: classes.white}}
-                   value={store.mode} disableUnderline={true}
-                   onChange={ev => store.mode = ev.target.value as S.JournalMode}>
-        <UI.MenuItem value="current">Current</UI.MenuItem>
-        <UI.MenuItem value="history">History</UI.MenuItem>
-      </UI.Select>
-    </UI.FormControl>
+    const {store, classes, width} = this.props
+    const loading = !store.current, notSkinny = (width !== "xs")
+    const modeSelect = cycleButton({"current": "Current", "history": "History"}, store.mode,
+                                   mode => store.mode = mode as S.JournalMode)
 
     switch (store.mode) {
     case "current":
       return <UI.Toolbar>
         {modeSelect}
-        <UI.Typography style={{marginLeft: 8, marginRight: 8}} variant="h6" color="inherit">
-          Add:</UI.Typography>
+        {footText("Add:")}
         <UI.Input type="text" className={classes.footText} placeholder="Journal Entry"
                   value={store.newEntry} disableUnderline={true}
                   onChange={ev => store.newEntry = ev.currentTarget.value}
                   onKeyPress={ev => { if (ev.key === "Enter") store.addEntry() }} />
-        <UI.IconButton color="inherit" disabled={!haveJournum}
+        <UI.IconButton color="inherit" disabled={loading}
           onClick={() => store.addEntry()}><Icons.Add /></UI.IconButton>
       </UI.Toolbar>
     case "history":
@@ -260,11 +265,17 @@ class JournalFooterRaw extends React.Component<JVProps> {
                   value={store.histFilterPend} disableUnderline={true}
                   onChange={ev => store.setHistFilter(ev.currentTarget.value)}
                   onKeyPress={ev => { if (ev.key === "Enter") store.applyHistFilter() }} />
+        {notSkinny && footText("Import:")}
+        {notSkinny &&
+         <UI.Input type="text" className={classes.footText}
+                   value={store.legacyData} disableUnderline={true}
+                   onChange={ev => store.legacyData = ev.currentTarget.value}
+                   onKeyPress={ev => { if (ev.key === "Enter") store.importLegacy() }} />}
       </UI.Toolbar>
     }
   }
 }
-export const JournalFooter = UI.withStyles(jvStyles)(JournalFooterRaw)
+export const JournalFooter = UI.withStyles(jvStyles)(UI.withWidth()(JournalFooterRaw))
 
 // ---------
 // Item view
@@ -856,27 +867,24 @@ class ItemsViewRaw extends React.Component<IVProps> {
 }
 export const ItemsView = UI.withStyles(ivStyles)(ItemsViewRaw)
 
+interface IFProps extends IVProps, UI.WithWidth {}
+
 @observer
-class ItemsFooterRaw extends React.Component<IVProps> {
+class ItemsFooterRaw extends React.Component<IFProps> {
 
   render () {
-    const {store, classes, ui} = this.props
-    const modeSelect = <UI.FormControl style={{marginRight: 8}}>
-        <UI.Select className={classes.whiteUnderlined} classes={{icon: classes.white}}
-                   value={store.mode} disableUnderline={true}
-                   onChange={ev => store.mode = ev.target.value as S.ItemsMode}>
-        <UI.MenuItem value="current">Current</UI.MenuItem>
-        <UI.MenuItem value="history">History</UI.MenuItem>
-        <UI.MenuItem value="bulk">Bulk</UI.MenuItem>
-      </UI.Select>
-    </UI.FormControl>
+    const {store, classes, ui, width} = this.props
+    const notSkinny = (width !== "xs")
+    const modeLabels = {"current": "Current", "history": "History"}
+    if (notSkinny) modeLabels["bulk"] = "Bulk"
+    const modeSelect = cycleButton(modeLabels, store.mode, m => store.mode = m as S.ItemsMode)
 
     switch (store.mode) {
     case "current":
       return <UI.Toolbar>
         {modeSelect}
         {footText("Add:")}
-        <UI.Input type="text" className={classes.footText} placeholder={ui.addPlaceholder}
+        <UI.Input className={classes.footText} placeholder={ui.addPlaceholder}
                   value={store.newItem} disabled={!store} disableUnderline={true}
                   onChange={ev => store.newItem = ev.currentTarget.value}
                   onKeyPress={ev => { if (ev.key === "Enter") this.addNewEntry() }} />
@@ -887,7 +895,7 @@ class ItemsFooterRaw extends React.Component<IVProps> {
       return <UI.Toolbar>
         {modeSelect}
         {footText("Filter:")}
-        <UI.Input type="text" className={classes.footText} disabled={store.history.pending}
+        <UI.Input className={classes.footText} disabled={store.history.pending}
                   value={store.histFilterPend} disableUnderline={true}
                   onChange={ev => store.setHistFilter(ev.currentTarget.value)}
                   onKeyPress={ev => { if (ev.key === "Enter") store.applyHistFilter() }} />
@@ -895,14 +903,15 @@ class ItemsFooterRaw extends React.Component<IVProps> {
     case "bulk":
       return <UI.Toolbar>
         {modeSelect}
-        <UI.Typography variant="h6" color="inherit">Year:</UI.Typography>
+        {footText("Year:")}
         {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollBulkYear(-1))}
-        <UI.Typography variant="h6" color="inherit">{String(store.bulkYear || "<new>")}</UI.Typography>
+        <UI.Typography variant="h6" color="inherit">{
+          String(store.bulkYear || "<new>")}</UI.Typography>
         {U.menuButton("next", <Icons.ArrowRight />, () => store.rollBulkYear(1))}
         <Spacer />
-        <UI.Typography variant="h6" color="inherit">Bulk import:</UI.Typography>
-        <UI.TextField value={store.legacyData}
-                      onChange={ev => store.legacyData = ev.currentTarget.value} />
+        {footText("Import:")}
+        <UI.Input value={store.legacyData} className={classes.footText} disableUnderline={true}
+                  onChange={ev => store.legacyData = ev.currentTarget.value} />
         <UI.Button color="inherit" onClick={ev => store.importLegacy()}>Submit</UI.Button>
       </UI.Toolbar>
     }
@@ -915,4 +924,4 @@ class ItemsFooterRaw extends React.Component<IVProps> {
     store.newItem = ""
   }
 }
-export const ItemsFooter = UI.withStyles(ivStyles)(ItemsFooterRaw)
+export const ItemsFooter = UI.withStyles(ivStyles)(UI.withWidth()(ItemsFooterRaw))

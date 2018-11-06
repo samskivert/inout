@@ -164,6 +164,13 @@ export class JournalStore {
   applyHistFilter () {
     this.histFilter = this.histFilterPend
   }
+
+  @observable legacyData :string = ""
+
+  importLegacy () {
+    for (let data of JSON.parse(this.legacyData)) this.db.createJournal(data)
+    this.legacyData = ""
+  }
 }
 
 //
