@@ -97,7 +97,7 @@ export class JournalStore {
   }
 
   async rollDate (days :number) {
-    let date = new Date(this.currentDate)
+    let date = U.fromStamp(this.currentDate)
     date.setDate(date.getDate() + days)
     // this.pickingDate = undefined // also clear picking date
     return this.setDate(U.toStamp(date))
@@ -347,7 +347,7 @@ export abstract class ItemsStore {
     if (ldata.link) data.link = ldata.link
     if (ldata.rating) data.rating = ldata.rating
     if (ldata.completed) data.completed = ldata.completed
-    data.created = ldata.completed ? new Date(ldata.completed) : new Date()
+    data.created = ldata.completed ? U.fromStamp(ldata.completed) : new Date()
     return data
   }
 
