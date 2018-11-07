@@ -2,6 +2,11 @@ import * as React from "react";
 import * as UI from './ui'
 
 //
+// Stuff stuff
+
+export type Thunk = () => void
+
+//
 // Date stuff
 
 const pad = (value :number) => (value < 10) ? `0${value}` : `${value}`

@@ -121,6 +121,26 @@ function boolEditor (label :string, prop :IObservableValue<boolean>, cells :UI.G
   </UI.Grid>
 }
 
+// ---------------------
+// Snack (feedback) view
+
+function snackView (store :S.SnackStore) :JSX.Element {
+  const hide = () => store.showing = false
+  const actions = [
+    <UI.IconButton key="close" aria-label="Close" color="inherit"
+                   onClick={hide}><Icons.Close /></UI.IconButton>,
+  ]
+  const undo = store.current.undo
+  if (undo) actions.unshift(<UI.Button key="undo" color="secondary" size="small"
+                                       onClick={() => { undo() ; hide() }}>UNDO</UI.Button>)
+  return <UI.Snackbar key="feedback" anchorOrigin={{vertical: 'bottom', horizontal: 'left'}}
+                      open={store.showing} autoHideDuration={6000}
+                      onClose={(ev, r) => { if (r !== "clickaway") hide() }}
+                      onExited={() => store.showNext()}
+                      message={<span id="message-id">{store.current.message}</span>}
+                      action={actions} />
+}
+
 // -------------
 // Journal views
 
@@ -264,10 +284,12 @@ class JournalFooterRaw extends React.Component<JVProps> {
     const loading = !store.current
     const modeSelect = cycleButton({"current": "Current", "history": "History"}, store.mode,
                                    mode => store.mode = mode as S.JournalMode)
+    const snack = snackView(store.snacks)
 
     switch (store.mode) {
     case "current":
       return <UI.Toolbar>
+        {snack}
         {modeSelect}
         {footText("Add:")}
         <UI.Input type="text" className={classes.footText} placeholder="Journal Entry"
@@ -279,6 +301,7 @@ class JournalFooterRaw extends React.Component<JVProps> {
       </UI.Toolbar>
     case "history":
       return <UI.Toolbar>
+        {snack}
         {modeSelect}
         <UI.Select className={classes.histYear} classes={{icon: classes.white}} native
                    value={store.histYear}
@@ -899,10 +922,12 @@ class ItemsFooterRaw extends React.Component<IVProps> {
     const modeLabels = {"current": "Current", "history": "History"}
     if (wide) modeLabels["bulk"] = "Bulk"
     const modeSelect = cycleButton(modeLabels, store.mode, m => store.mode = m as S.ItemsMode)
+    const snack = snackView(store.snacks)
 
     switch (store.mode) {
     case "current":
       return <UI.Toolbar>
+        {snack}
         {modeSelect}
         {footText("Add:")}
         <UI.Input className={classes.footText} placeholder={ui.addPlaceholder}
@@ -914,6 +939,7 @@ class ItemsFooterRaw extends React.Component<IVProps> {
       </UI.Toolbar>
     case "history":
       return <UI.Toolbar>
+        {snack}
         {modeSelect}
         {footText("Filter:")}
         <UI.Input className={classes.footText} disabled={store.history.pending}
@@ -923,6 +949,7 @@ class ItemsFooterRaw extends React.Component<IVProps> {
       </UI.Toolbar>
     case "bulk":
       return <UI.Toolbar>
+        {snack}
         {modeSelect}
         {footText("Year:")}
         {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollBulkYear(-1))}

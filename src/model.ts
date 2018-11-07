@@ -1,6 +1,6 @@
 import * as firebase from "firebase"
-import { IObservableValue, observable, observe, computed, toJS } from "mobx"
-import { Stamp, fromStamp } from "./util"
+import { IObservableValue, observable, computed, toJS } from "mobx"
+import { Thunk, Stamp, fromStamp } from "./util"
 
 export type ID = string
 export type URL = string
@@ -20,16 +20,8 @@ function updateRef (ref :Ref, data :Data) {
     catch(err => console.warn(`Failed to update ${ref.id}: ${err}`))
 }
 
-type PropKey = string|number|symbol
-
 function isEmptyArray (value :any) :boolean {
   return Array.isArray(value) && value.length === 0
-}
-
-function syncRef (ref :Ref, prop :PropKey, refprop :PropKey, newValue :any) {
-  console.log(`Syncing ${String(prop)} = '${newValue}' (to ${String(refprop)})`)
-  const upValue = (newValue === undefined || isEmptyArray(newValue)) ? DeleteValue : newValue
-  updateRef(ref, {[refprop]: upValue})
 }
 
 abstract class Prop<T> {
@@ -37,9 +29,9 @@ abstract class Prop<T> {
   abstract get name () :string
   abstract get syncValue () :IObservableValue<T>
   abstract read (data :Data) :void
-  abstract write (data :Data) :void
   abstract startEdit () :void
   abstract commitEdit () :void
+  toString () { return this.name }
 }
 
 function readProp (data :Data, prop :string) :any {
@@ -67,9 +59,6 @@ class SimpleProp<T> extends Prop<T> {
   read (data :Data) {
     this.syncValue.set(readProp(data, this.name))
   }
-  write (data :Data) {
-    writeProp(data, this.name, this.value)
-  }
   startEdit () {
     this.editValue.set(this.value)
   }
@@ -90,9 +79,6 @@ class TagsProp extends Prop<string[]> {
 
   read (data :Data) {
     this.syncValue.set(readProp(data, this.name) || [])
-  }
-  write (data :Data) {
-    writeProp(data, this.name, this.value)
   }
   startEdit () {
     this.editValue.set(this.value.join(" "))
@@ -116,14 +102,7 @@ abstract class Doc {
   protected readonly props :Prop<any>[] = []
   protected _syncing = true
 
-  constructor (readonly ref :Ref, data :Data) {}
-
-  noteSync<T> (owner :T, prop :keyof T, refprop :PropKey = prop) {
-    observe(owner, prop, change => {
-      if (this._syncing) syncRef(this.ref, prop, refprop, change.newValue)
-    })
-    // TODO: may want to keep track of observers & allow removal/clearing?
-  }
+  constructor (readonly ref :Ref, readonly data :Data) {}
 
   read (data :Data) {
     this._syncing = false
@@ -137,7 +116,13 @@ abstract class Doc {
 
   addProp<T,P extends Prop<T>> (prop :P) :P {
     prop.syncValue.observe(change => {
-      if (this._syncing) syncRef(this.ref, prop.name, prop.name, change.newValue)
+      if (this._syncing) {
+        const newValue = toJS(change.newValue)
+        console.log(`Syncing ${prop.name} = '${newValue}'`)
+        const upValue = (newValue === undefined || isEmptyArray(newValue)) ? DeleteValue : newValue
+        updateRef(this.ref, {[prop.name]: upValue})
+        writeProp(this.data, prop.name, newValue)
+      }
     })
     this.props.push(prop)
     return prop
@@ -156,7 +141,9 @@ abstract class Doc {
   }
 
   protected readProps (data :Data) {
-    for (let prop of this.props) prop.read(data)
+    for (let prop of this.props) try { prop.read(data) } catch (error) {
+      console.warn(`Failed to read prop: ${prop} from ${JSON.stringify(data)}`)
+    }
   }
 }
 
@@ -351,17 +338,24 @@ export class Journum extends Doc {
     updateRef(this.ref, {[`entries.${key}`]: edata, "order": toJS(this.order)})
   }
 
-  deleteEntry (key :string) {
+  deleteEntry (key :string) :Thunk {
     const changes :Data = {}
-    if (this.entryMap.delete(key)) {
+    const undo :Data = {}
+    const entry = this.entryMap.get(key)
+    if (entry && this.entryMap.delete(key)) {
       changes[`entries.${key}`] = DeleteValue
+      undo[`entries.${key}`] = entry.toData()
+      entry.deleted()
     }
     const oidx = this.order.indexOf(key)
     if (oidx >= 0) {
+      undo["order"] = toJS(this.order)
       this.order.splice(oidx, 1)
       changes["order"] = this.order
     }
     updateRef(this.ref, changes)
+    console.dir(undo)
+    return () => updateRef(this.ref, undo)
   }
 
   moveEntry (key :string, delta :number) {
@@ -406,5 +400,12 @@ export class Entry {
   deleted () {
     this.owner.removeProp(this.text)
     this.owner.removeProp(this.tags)
+  }
+
+  toData () :Data {
+    const data :Data = {text: this.text.value}
+    if (this.tags.value) data.tags = this.tags.value
+    if (this.item) data.item = this.item
+    return data
   }
 }

@@ -5,18 +5,50 @@ import * as M from "./model"
 import * as U from "./util"
 
 //
+// View model for feedback (snack) popups
+
+type Snaction = {message :string, undo :U.Thunk|void}
+
+export class SnackStore {
+  @observable showing = false
+  @observable current :Snaction = {message: "", undo: undefined}
+  readonly queue :Snaction[] = []
+
+  showFeedback (message :string, undo :U.Thunk|void = undefined) {
+    this.queue.push({message, undo})
+    // if we're currently showing when a message comes in, clear that message immediately;
+    // once it's transitioned off screen, we'll show the next message
+    if (this.showing) this.showing = false
+    else this.showNext()
+  }
+
+  showNext () {
+    const next = this.queue.shift()
+    if (next) {
+      this.current = next
+      this.showing = true
+    }
+  }
+}
+
+//
 // View model for journal lists and entries there-in
 
 export class EntryStore {
   @observable showMenu = false
   @observable editing = false
 
-  constructor (readonly journum :M.Journum, readonly entry :M.Entry) {}
+  constructor (readonly parent :JournalStore,
+               readonly journum :M.Journum,
+               readonly entry :M.Entry) {}
 
   get key () :string { return this.entry.key }
 
   moveItem (delta :number) { this.journum.moveEntry(this.entry.key, delta) }
-  deleteItem () { this.journum.deleteEntry(this.entry.key) }
+  deleteItem () {
+    const undo = this.journum.deleteEntry(this.entry.key)
+    this.parent.snacks.showFeedback("Journal entry deleted.", undo)
+  }
 
   startEdit () {
     this.entry.startEdit()
@@ -36,11 +68,12 @@ export class EntryStore {
   }
 }
 
-function getCachedEntryStores (journum :M.Journum, storeCache :Map<string, EntryStore>) {
+function getCachedEntryStores (store :JournalStore, journum :M.Journum,
+                               storeCache :Map<string, EntryStore>) {
   const stores :EntryStore[] = []
   for (let ent of journum.entries) {
     let es = storeCache.get(ent.key)
-    if (!es) storeCache.set(ent.key, es = new EntryStore(journum, ent))
+    if (!es) storeCache.set(ent.key, es = new EntryStore(store, journum, ent))
     stores.push(es)
   }
   // TODO: prune old stores? nah!
@@ -51,6 +84,7 @@ export type JournalMode = "current" | "history"
 
 export class JournalStore {
   @observable mode :JournalMode = "current"
+  readonly snacks = new SnackStore()
 
   constructor (readonly db :DB.DB) {
     this.currentDate = U.toStamp(new Date())
@@ -76,7 +110,7 @@ export class JournalStore {
   entryStores :Map<string, EntryStore> = new Map()
 
   @computed get entries () :EntryStore[] {
-    if (this.current) return getCachedEntryStores(this.current, this.entryStores)
+    if (this.current) return getCachedEntryStores(this, this.current, this.entryStores)
     this.entryStores.clear()
     return []
   }
@@ -146,7 +180,7 @@ export class JournalStore {
   historyEntries (journum :M.Journum) :EntryStore[] {
     let cache = this._historyEntCache.get(journum.date)
     if (!cache) this._historyEntCache.set(journum.date, cache = new Map())
-    return getCachedEntryStores(journum, cache)
+    return getCachedEntryStores(this, journum, cache)
   }
 
   rollHistYear (delta :number) {
@@ -188,23 +222,31 @@ export class ItemStore {
 
   get key () :string { return this.item.ref.id }
 
-  constructor (readonly item :M.Item) {}
+  constructor (readonly parent :ItemsStore, readonly item :M.Item) {}
 
   startItem () {
-    this.item.startedProp && this.item.startedProp.syncValue.set(U.toStamp(new Date()))
+    if (this.item.startedProp) {
+      const sv = this.item.startedProp.syncValue
+      sv.set(U.toStamp(new Date()))
+      this.parent.snacks.showFeedback("Item marked as started.", () => sv.set(undefined))
+    }
   }
   completeItem () {
     this.item.completed.syncValue.set(U.toStamp(new Date()))
+    this.parent.snacks.showFeedback("Item marked as completed.", () => this.uncompleteItem())
   }
   uncompleteItem () {
     this.item.completed.syncValue.set(null)
   }
 
-  deleteItem () {
-    this.item.ref.delete().catch(error => {
+  async deleteItem () {
+    try {
+      await this.item.ref.delete()
+      this.parent.snacks.showFeedback("Item deleted.", () => this.item.ref.set(this.item.data))
+    } catch (error) {
       console.warn(`Failed to delete item [${this.item.ref.id}]: ${error}`)
-      // TODO: feedback in UI
-    })
+      this.parent.snacks.showFeedback(`Failed to delete item: ${error}`)
+    }
   }
 
   startEdit () {
@@ -223,11 +265,9 @@ export class ItemStore {
 //
 // View models for to-x views
 
-function storesFor (items :DB.Items) :ItemStore[] {
+function storesFor (parent :ItemsStore, items :DB.Items) :ItemStore[] {
   let stores :ItemStore[] = []
-  for (let item of items.sortedItems) {
-    stores.push(new ItemStore(item))
-  }
+  for (let item of items.sortedItems) stores.push(new ItemStore(parent, item))
   return stores
 }
 
@@ -243,6 +283,7 @@ export type ItemsMode = "current" | "history" | "bulk"
 
 export abstract class ItemsStore {
   @observable mode :ItemsMode = "current"
+  readonly snacks = new SnackStore()
 
   constructor (readonly coll :DB.ItemCollection) {
     this.items = coll.items()
@@ -266,8 +307,8 @@ export abstract class ItemsStore {
   readonly compItems :DB.Items
 
   // TODO: revamp to be based on a backing map from id?
-  @computed get itemStores () :ItemStore[] { return storesFor(this.items) }
-  @computed get recentStores () :ItemStore[] { return storesFor(this.compItems) }
+  @computed get itemStores () :ItemStore[] { return storesFor(this, this.items) }
+  @computed get recentStores () :ItemStore[] { return storesFor(this, this.compItems) }
 
   abstract get title () :string
   get partitions () :Partition[] { return [{title: this.title, stores: this.itemStores}] }
@@ -292,7 +333,7 @@ export abstract class ItemsStore {
   @observable histFilterPend = ""
   @observable histFilter = ""
 
-  get historyStores () :ItemStore[] { return storesFor(this.history) }
+  get historyStores () :ItemStore[] { return storesFor(this, this.history) }
   get history () :DB.Items {
     if (this._history === null) this._history = this.coll.completed()
     return this._history
