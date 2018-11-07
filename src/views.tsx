@@ -186,6 +186,9 @@ const jvStyles = UI.createStyles({
     color: "white",
     borderBottom: "1px solid white"
   },
+  dateButton: {
+    textTransform: "none",
+  },
 })
 
 interface JVProps extends UI.WithStyles<typeof jvStyles> {
@@ -197,20 +200,20 @@ interface JVProps extends UI.WithStyles<typeof jvStyles> {
 class JournalViewRaw extends React.Component<JVProps> {
 
   render () {
-    const {store} = this.props, journum = store.current, entries = store.entries
+    const {store, classes} = this.props, journum = store.current, entries = store.entries
     switch (store.mode) {
     case "current":
       return <UI.List>
         <UI.ListItem disableGutters>
           {U.menuButton("today", <Icons.Today />, () => store.goToday())}
           {U.menuButton("prev", <Icons.ArrowLeft />, () => store.rollDate(-1))}
-          {text(U.formatDate(store.currentDate))}
-          {U.menuButton("next", <Icons.ArrowRight />, () => store.rollDate(+1))}
           {store.pickingDate ?
-          <UI.TextField autoFocus color="inherit" type="date" value={store.pickingDate}
-            onChange={ev => store.updatePick(ev.currentTarget.value)}
-            onBlur={ev => store.commitPick()} /> :
-          U.menuButton("pick", <Icons.CalendarToday />, () => store.startPick())}
+           <UI.TextField autoFocus color="inherit" type="date" value={store.pickingDate}
+                         onChange={ev => store.updatePick(ev.currentTarget.value)}
+                         onBlur={ev => store.commitPick()} /> :
+           <UI.Button className={classes.dateButton} onClick={() => store.startPick()}>
+             {text(U.formatDate(store.currentDate))}</UI.Button>}
+          {U.menuButton("next", <Icons.ArrowRight />, () => store.rollDate(+1))}
           <Spacer />
         </UI.ListItem>
         {journum === undefined ? textListItem("Loading...") :
