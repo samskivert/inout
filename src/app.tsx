@@ -161,7 +161,7 @@ export class AppViewRaw extends React.Component<AVProps> {
       {TabInfo.filter(info => !store.isPinned(info.tab))
               .map(info => menuButton(info.tab, info.icon, () => store.tab = info.tab))}
       <V.Spacer />
-      {menuButton("pin", Icons.pin, () => store.pin(store.tab))}
+      {width !== "xs" && menuButton("pin", Icons.pin, () => store.pin(store.tab))}
       {menuButton("logoff", <Icons.CloudOff />, () => firebase.auth().signOut())}
     </UI.Toolbar>
 
