@@ -156,13 +156,25 @@ export class AppViewRaw extends React.Component<AVProps> {
       return appView(stores, tab, footer)
     }
 
+    const hideLogoff = () => store.showLogoff = false
+    const logoff = () => { firebase.auth().signOut() ; hideLogoff() }
+    const logoffDialog =
+      <UI.Dialog open={store.showLogoff} onClose={hideLogoff} aria-labelledby="logoff-title">
+        <UI.DialogTitle id="logoff-title">{"Sign out?"}</UI.DialogTitle>
+        <UI.DialogActions>
+          <UI.Button onClick={hideLogoff} color="primary">No</UI.Button>
+          <UI.Button onClick={logoff} color="primary" autoFocus>Yes</UI.Button>
+        </UI.DialogActions>
+      </UI.Dialog>
+
     const mainToolbar = <UI.Toolbar>
       <UI.Typography style={{marginRight: 5}} variant="h6" color="inherit">I/O</UI.Typography>
       {TabInfo.filter(info => !store.isPinned(info.tab))
               .map(info => menuButton(info.tab, info.icon, () => store.tab = info.tab))}
       <V.Spacer />
       {width !== "xs" && menuButton("pin", Icons.pin, () => store.pin(store.tab))}
-      {menuButton("logoff", <Icons.CloudOff />, () => firebase.auth().signOut())}
+      {menuButton("logoff", <Icons.CloudOff />, () => store.showLogoff = true)}
+      {logoffDialog}
     </UI.Toolbar>
 
     if (store.pinned.length > 0) return (

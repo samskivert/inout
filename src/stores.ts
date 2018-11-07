@@ -471,6 +471,7 @@ export class AppStore {
   @observable tab :Tab = "journal"
   // TODO: persist pinned to browser local storage
   @observable pinned :Tab[] = []
+  @observable showLogoff = false
 
   // this can't be a @computed because of MobX tracking depends through a constructor into the
   // constructed object itself which is idiotic, but yay for magic
