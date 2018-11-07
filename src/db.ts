@@ -1,5 +1,6 @@
 import { observable, transaction } from "mobx"
-import * as firebase from "firebase"
+import * as firebase from "firebase/app"
+import "firebase/firestore"
 import * as M from "./model"
 import * as U from "./util"
 
@@ -175,7 +176,7 @@ export class DB {
       if (!doc.exists) ref.set(data).
         then(() => console.log(`Yay, created ${ref.id}`)).
         catch(err => console.warn(`Failed to set ${ref.id}: ${err}`))
-      else console.log(`Loaded existing journum ${date}: ${JSON.stringify(data)}`)
+      // else console.log(`Loaded existing journum ${date}: ${JSON.stringify(data)}`)
       return new M.Journum(ref, data)
     } catch (error) {
       console.log(`Failed to load journal [uid=${this.uid}, ref=${ref.path}, date=${date}]`, error)

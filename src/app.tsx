@@ -1,7 +1,8 @@
 import { observer } from "mobx-react"
 import * as React from "react";
 
-import * as firebase from "firebase"
+import * as firebase from "firebase/app"
+import "firebase/auth"
 import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth'
 
 import * as Icons from "./icons"

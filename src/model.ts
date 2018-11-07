@@ -1,5 +1,6 @@
-import * as firebase from "firebase"
 import { IObservableValue, observable, computed, toJS } from "mobx"
+import * as firebase from "firebase/app"
+import "firebase/firestore"
 import { Thunk, Stamp, fromStamp } from "./util"
 
 export type ID = string
@@ -283,7 +284,7 @@ export class Journum extends Doc {
     if (live) {
       console.log(`Subscribing to doc: ${this.ref.id}`)
       this._unsubscribe = this.ref.onSnapshot(doc => {
-        console.log(`Doc updated: ${this.ref.id}: ${JSON.stringify(doc.data())}`)
+        console.log(`Doc updated: ${this.ref.id}`) // : ${JSON.stringify(doc.data())}`)
         this.read(doc.data() || {})
       })
     } else this.read(data)

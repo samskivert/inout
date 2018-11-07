@@ -1,5 +1,6 @@
-import { computed, observable } from "mobx"
-import * as firebase from "firebase"
+import { computed, observable, autorun } from "mobx"
+import * as firebase from "firebase/app"
+import "firebase/auth"
 import * as DB from "./db"
 import * as M from "./model"
 import * as U from "./util"
@@ -527,6 +528,15 @@ export class AppStore {
       if (user) this.stores = new Stores(this.db)
       else this.stores = null
       this.user = user
+    })
+
+    // sync "pinned" property to local storage
+    const pinned = localStorage.getItem("pinned")
+    if (pinned) this.pinned = pinned.split(" ").map(p => p as Tab)
+    autorun(() => {
+      const tabs = this.pinned
+      if (tabs.length > 0) localStorage.setItem("pinned", tabs.join(" "))
+      else localStorage.removeItem("pinned")
     })
   }
 

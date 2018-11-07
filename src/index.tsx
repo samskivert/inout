@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import * as firebase from "firebase"
+import * as firebase from "firebase/app"
 
 // import blue from '@material-ui/core/colors/blue';
 import blueGrey from '@material-ui/core/colors/blueGrey';
@@ -22,6 +22,9 @@ const theme = UI.createMuiTheme({
   },
   spacing: {
     unit: 6,
+  },
+  typography: {
+    useNextVariants: true,
   },
   overrides: {
     MuiButton: {
