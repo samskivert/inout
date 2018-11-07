@@ -29,8 +29,8 @@ function cycleButton (options :Object, current :string,
     ev => setter(keys[(curidx+1)%keys.length])}>{options[current]}</UI.Button>
 }
 
-function text (text :string) :JSX.Element {
-  return <UI.Typography variant="h6" color="inherit">{text}</UI.Typography>
+function text (text :string, variant :UI.ThemeStyle = "h6") :JSX.Element {
+  return <UI.Typography variant={variant} color="inherit">{text}</UI.Typography>
 }
 
 function footText (text :string) {
@@ -41,7 +41,7 @@ function footText (text :string) {
 const spStyles = UI.createStyles({
   grow: {flexGrow: 1},
 })
-const Spacer = UI.withStyles(spStyles)(({classes} :UI.WithStyles<typeof spStyles>) =>
+export const Spacer = UI.withStyles(spStyles)(({classes} :UI.WithStyles<typeof spStyles>) =>
   <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>)
 
 const tagStyles = (theme :UI.Theme) => UI.createStyles({
@@ -190,6 +190,7 @@ const jvStyles = UI.createStyles({
 
 interface JVProps extends UI.WithStyles<typeof jvStyles> {
   store :S.JournalStore
+  wide :boolean
 }
 
 @observer
@@ -249,17 +250,15 @@ class JournalViewRaw extends React.Component<JVProps> {
 }
 export const JournalView = UI.withStyles(jvStyles)(JournalViewRaw)
 
-interface JFProps extends JVProps, UI.WithWidth {}
-
 const thisYear = new Date().getFullYear()
 const histYears = Array.from(new Array(thisYear-2000)).map((v, ii) => thisYear-ii)
 
 @observer
-class JournalFooterRaw extends React.Component<JFProps> {
+class JournalFooterRaw extends React.Component<JVProps> {
 
   render () {
-    const {store, classes, width} = this.props
-    const loading = !store.current, notSkinny = (width !== "xs")
+    const {store, classes, wide} = this.props
+    const loading = !store.current
     const modeSelect = cycleButton({"current": "Current", "history": "History"}, store.mode,
                                    mode => store.mode = mode as S.JournalMode)
 
@@ -288,8 +287,8 @@ class JournalFooterRaw extends React.Component<JFProps> {
                   value={store.histFilterPend} disableUnderline={true}
                   onChange={ev => store.setHistFilter(ev.currentTarget.value)}
                   onKeyPress={ev => { if (ev.key === "Enter") store.applyHistFilter() }} />
-        {notSkinny && footText("Import:")}
-        {notSkinny &&
+        {wide && footText("Import:")}
+        {wide &&
          <UI.Input type="text" className={classes.footText}
                    value={store.legacyData} disableUnderline={true}
                    onChange={ev => store.legacyData = ev.currentTarget.value}
@@ -298,7 +297,7 @@ class JournalFooterRaw extends React.Component<JFProps> {
     }
   }
 }
-export const JournalFooter = UI.withStyles(jvStyles)(UI.withWidth()(JournalFooterRaw))
+export const JournalFooter = UI.withStyles(jvStyles)(JournalFooterRaw)
 
 // ---------
 // Item view
@@ -307,7 +306,7 @@ function addSecondary (have :string|void, label :string, text :string|void) :str
   if (!have && !text) return undefined
   else if (!have) return `(${label} ${text})`
   else if (!text) return have
-  else `${have} (${label} ${text})`
+  else return `${have} (${label} ${text})`
 }
 
 const RatingEmoji = ["😴", "🤮", "😒", "😐", "🙂","😍"]
@@ -383,7 +382,7 @@ class ItemEditDialogRaw extends React.Component<IEDProps> {
     const ditems :JSX.Element[] = []
     this.props.itemsFn(ditems)
     ditems.push(<UI.Grid key="created" item xs={12}>
-                  {text(`Created: ${store.item.created.toDate().toLocaleString()}`)}
+                  {text(`Created: ${store.item.created.toDate().toLocaleString()}`, "caption")}
                 </UI.Grid>)
     return (
       <UI.Dialog key="edit-dialog" fullWidth fullScreen={fullScreen}
@@ -413,7 +412,7 @@ const RatingTypes = [
   {value: "good",  label: RatingEmoji[4] + "Good"},
   {value: "great", label: RatingEmoji[5] + "Great"}]
 
-type ItemUI = {
+export type ItemUI = {
   addPlaceholder :string
   itemView :(store :S.ItemStore) => JSX.Element
   titleIcon :JSX.Element
@@ -653,7 +652,8 @@ const HearUI :ItemUI = {
 // ----
 // PLAY
 
-const PlayTypes = [{value: "pc",     label: "PC"},
+const PlayTypes = [{value: "table",  label: "Table"},
+                   {value: "pc",     label: "PC"},
                    {value: "mobile", label: "Mobile"},
                    {value: "switch", label: "Switch"},
                    {value: "ps4",    label: "PS4"},
@@ -663,7 +663,13 @@ const PlayTypes = [{value: "pc",     label: "PC"},
                    {value: "wiiu",   label: "Wii U"},
                    {value: "ps3",    label: "PS3"},
                    {value: "wii",    label: "Wii"},
-                   {value: "table",  label: "Table"}]
+                   {value: "ps2",    label: "PS2"},
+                   {value: "dcast",  label: "Dreamcast"},
+                   {value: "cube",   label: "GameCube"},
+                   {value: "gba",    label: "GBA"},
+                   {value: "n64",    label: "N64"},
+                   {value: "ps1",    label: "PS1"},
+                   {value: "gbc",    label: "GameBoy Color"}]
 const PlatformToName = new Map(PlayTypes.map(({value, label}) => [value, label] as [any, any]))
 
 const SawCreditsEmoji = "🏁"
@@ -779,16 +785,13 @@ const DineUI :ItemUI = {
 // ----------
 // Items view
 
-export function itemUI (type :M.ItemType) :ItemUI {
-  switch (type) {
-  case M.ItemType.BUILD: return BuildUI
-  case  M.ItemType.READ: return ReadUI
-  case M.ItemType.WATCH: return WatchUI
-  case  M.ItemType.HEAR: return HearUI
-  case  M.ItemType.PLAY: return PlayUI
-  case  M.ItemType.DINE: return DineUI
-  default: throw new Error(`TODO: ${type}`)
-  }
+export const itemUI = {
+  "build": BuildUI,
+  "read":  ReadUI,
+  "watch": WatchUI,
+  "hear":  HearUI,
+  "play":  PlayUI,
+  "dine":  DineUI,
 }
 
 const ivStyles = UI.createStyles({
@@ -808,6 +811,7 @@ const ivStyles = UI.createStyles({
 interface IVProps extends UI.WithStyles<typeof ivStyles> {
   store :S.ItemsStore
   ui :ItemUI
+  wide :boolean
 }
 
 type HistoryPartition = {year :string, stores :S.ItemStore[]}
@@ -884,16 +888,13 @@ class ItemsViewRaw extends React.Component<IVProps> {
 }
 export const ItemsView = UI.withStyles(ivStyles)(ItemsViewRaw)
 
-interface IFProps extends IVProps, UI.WithWidth {}
-
 @observer
-class ItemsFooterRaw extends React.Component<IFProps> {
+class ItemsFooterRaw extends React.Component<IVProps> {
 
   render () {
-    const {store, classes, ui, width} = this.props
-    const notSkinny = (width !== "xs")
+    const {store, classes, ui, wide} = this.props
     const modeLabels = {"current": "Current", "history": "History"}
-    if (notSkinny) modeLabels["bulk"] = "Bulk"
+    if (wide) modeLabels["bulk"] = "Bulk"
     const modeSelect = cycleButton(modeLabels, store.mode, m => store.mode = m as S.ItemsMode)
 
     switch (store.mode) {
@@ -940,4 +941,4 @@ class ItemsFooterRaw extends React.Component<IFProps> {
     store.newItem = ""
   }
 }
-export const ItemsFooter = UI.withStyles(ivStyles)(UI.withWidth()(ItemsFooterRaw))
+export const ItemsFooter = UI.withStyles(ivStyles)(ItemsFooterRaw)

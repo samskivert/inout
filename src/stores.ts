@@ -301,7 +301,7 @@ export abstract class ItemsStore {
 
   setHistFilter (filter :string) {
     this.histFilterPend = filter
-    setTimeout(() => this.applyHistFilter(), 200)
+    setTimeout(() => this.applyHistFilter(), 500)
   }
   applyHistFilter () {
     this.histFilter = this.histFilterPend
@@ -342,6 +342,8 @@ export abstract class ItemsStore {
     let text = popTags(ldata.text, tags)
     const data = this.newItemData(text)
     if (tags.length > 0) data.tags = tags
+    if (ldata.type) data.type = ldata.type
+    if (ldata.platform) data.platform = ldata.platform
     if (ldata.link) data.link = ldata.link
     if (ldata.rating) data.rating = ldata.rating
     if (ldata.completed) data.completed = ldata.completed
@@ -371,13 +373,6 @@ export abstract class ProtractedItemsStore extends ItemsStore {
     if (data.completed) data.started = data.completed
     return data
   }
-}
-
-export class ToBuildStore extends ProtractedItemsStore {
-  get title () :string { return "To Build" }
-  get startedTitle () :string { return "Building" }
-  constructor (db :DB.DB) { super(db.build) }
-  protected newItemData (text :string) { return {text} }
 }
 
 export class ToReadStore extends ProtractedItemsStore {
@@ -423,12 +418,19 @@ export class ToDineStore extends ItemsStore {
   protected newItemData (text :string) { return {name: text} }
 }
 
+export class ToBuildStore extends ProtractedItemsStore {
+  get title () :string { return "To Build" }
+  get startedTitle () :string { return "Building" }
+  constructor (db :DB.DB) { super(db.build) }
+  protected newItemData (text :string) { return {text} }
+}
+
 //
 // Top-level app
 
 export class Stores {
   journal :JournalStore
-  items   :Map<M.ItemType, ItemsStore> = new Map()
+  items :Map<M.ItemType, ItemsStore> = new Map()
 
   constructor (readonly db :DB.DB) {
     this.journal = new JournalStore(db)
@@ -449,23 +451,27 @@ export class Stores {
 
   _createStore (type :M.ItemType) :ItemsStore {
     switch (type) {
-    case  M.ItemType.READ: return  new ToReadStore(this.db)
-    case M.ItemType.WATCH: return  new ToWatchStore(this.db)
-    case  M.ItemType.HEAR: return  new ToHearStore(this.db)
-    case  M.ItemType.PLAY: return  new ToPlayStore(this.db)
-    case  M.ItemType.DINE: return  new ToDineStore(this.db)
-    case M.ItemType.BUILD: return  new ToBuildStore(this.db)
+    case  "read": return  new ToReadStore(this.db)
+    case "watch": return  new ToWatchStore(this.db)
+    case  "hear": return  new ToHearStore(this.db)
+    case  "play": return  new ToPlayStore(this.db)
+    case  "dine": return  new ToDineStore(this.db)
+    case "build": return  new ToBuildStore(this.db)
     default: throw new Error(`Unknown item type: ${type}`)
     }
   }
 }
 
-export enum Tab { JOURNAL, READ, WATCH, HEAR, PLAY, DINE, BUILD/*, DO*/ }
+export type Tab = "journal" | "read" | "watch" | "hear" | "play" | "dine" | "build" // "do"
+export const TABS :Tab[] = [ "journal", "read", "watch", "hear", "play", "dine", "build" ]
 
 export class AppStore {
   readonly db = new DB.DB()
   @observable user :firebase.User|null = null
-  @observable tab = Tab.JOURNAL
+  @observable tab :Tab = "journal"
+  // TODO: persist pinned to browser local storage
+  @observable pinned :Tab[] = []
+
   // this can't be a @computed because of MobX tracking depends through a constructor into the
   // constructed object itself which is idiotic, but yay for magic
   stores :Stores|null = null
@@ -480,5 +486,22 @@ export class AppStore {
       else this.stores = null
       this.user = user
     })
+  }
+
+  isPinned (tab :Tab) :boolean { return this.pinned.includes(tab) }
+
+  pin (tab :Tab) {
+    this.pinned.unshift(tab)
+    for (let rtab of TABS) {
+      if (!this.isPinned(rtab)) {
+        this.tab = rtab
+        break
+      }
+    }
+  }
+
+  unpin (tab :Tab) {
+    let idx = this.pinned.indexOf(tab)
+    if (idx >= 0) this.pinned.splice(idx, 1)
   }
 }

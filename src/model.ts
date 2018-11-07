@@ -162,9 +162,7 @@ abstract class Doc {
 
 // Input model
 
-export enum ItemType {
-  READ = "read", WATCH = "watch", HEAR = "hear", PLAY = "play",
-  DINE ="dine", BUILD = "build"/*, DO = "do"*/ }
+export type ItemType = "read" | "watch" | "hear" | "play" | "dine" | "build" // | "do"
 
 export abstract class Item extends Doc {
   readonly created :firebase.firestore.Timestamp
@@ -207,7 +205,7 @@ export abstract class Consume extends Item {
   readonly recommender = this.newProp<string|void>("recommender", undefined)
 
   matches (filter :Filter) {
-    return super.matches(filter) || filter(this.recommender.value)
+    return super.matches(filter) || filter(this.recommender.value) || filter(this.rating.value)
   }
 }
 
@@ -232,7 +230,8 @@ export class Watch extends Consume {
   readonly type = this.newProp<WatchType>("type", "film")
 
   matches (filter :Filter) {
-    return super.matches(filter) || filter(this.title.value) || filter(this.director.value)
+    return (super.matches(filter) || filter(this.title.value) || filter(this.director.value) ||
+            filter(this.type.value))
   }
 }
 
@@ -248,7 +247,7 @@ export class Hear extends Consume {
 }
 
 export type Platform = "pc" | "mobile" | "switch" | "ps4" | "xbox" | "3ds" | "vita" |
-  "wiiu" | "ps3" | "wii" | "table"
+  "wiiu" | "ps3" | "wii" | "ps2" | "dcast" | "cube" | "gb" | "n64" | "ps1" | "table"
 
 export class Play extends Consume {
   readonly title = this.newProp("title", "")

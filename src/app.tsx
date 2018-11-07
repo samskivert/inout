@@ -6,7 +6,6 @@ import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth'
 
 import * as Icons from "./icons"
 import * as UI from "./ui"
-import * as M from "./model"
 import * as S from "./stores"
 import * as V from "./views"
 import { menuButton } from "./util"
@@ -63,32 +62,30 @@ class LoginViewRaw extends React.Component<UI.WithStyles<typeof lvStyles>> {
 }
 const LoginView = UI.withStyles(lvStyles)(LoginViewRaw)
 
-function itemsView (stores :S.Stores, type :M.ItemType) :[JSX.Element, JSX.Element] {
-  const store = stores.storeFor(type), ui = V.itemUI(type)
-  return [<V.ItemsView store={store} ui={ui} />, <V.ItemsFooter store={store} ui={ui} />]
-}
-
-function contentView (tab :S.Tab, stores :S.Stores) :[JSX.Element, JSX.Element] {
-  switch (tab) {
-  case S.Tab.JOURNAL: return [<V.JournalView store={stores.journal} />,
-                              <V.JournalFooter store={stores.journal} />]
-  case    S.Tab.READ: return itemsView(stores, M.ItemType.READ)
-  case   S.Tab.WATCH: return itemsView(stores, M.ItemType.WATCH)
-  case    S.Tab.HEAR: return itemsView(stores, M.ItemType.HEAR)
-  case    S.Tab.PLAY: return itemsView(stores, M.ItemType.PLAY)
-  case    S.Tab.DINE: return itemsView(stores, M.ItemType.DINE)
-  case   S.Tab.BUILD: return itemsView(stores, M.ItemType.BUILD)
-  default:            return [<div>TODO: handle {tab}</div>, <div>TODO</div>]
-  }
+function contentView (store :S.AppStore, stores :S.Stores, width :string,
+                      tab :S.Tab) :[JSX.Element, JSX.Element] {
+  const wide = width !== "xs" && !store.isPinned(tab)
+  if (tab === "journal") return [<V.JournalView store={stores.journal} wide={wide}/>,
+                                 <V.JournalFooter store={stores.journal} wide={wide} />]
+  const type = tab
+  const istore = stores.storeFor(type), ui = V.itemUI[type]
+  return [<V.ItemsView store={istore} ui={ui} wide={wide}/>,
+          <V.ItemsFooter store={istore} ui={ui} wide={wide} />]
 }
 
 const avStyles = (theme :UI.Theme) => UI.createStyles({
-  root: {
+  panes: {
+    display: "flex",
+    flexDirection: "row",
+    height: "100%",
+  },
+  section: {
+    flex: "1 1 0",
     display: "flex",
     flexDirection: "column",
     flexGrow: 1,
     height: "100%",
-
+    borderRight: "1px solid black",
   },
   grow: {
     flexGrow: 1,
@@ -108,14 +105,29 @@ interface AVProps extends UI.WithStyles<typeof avStyles>, UI.WithWidth {
   store :S.AppStore
 }
 
+type TabData = {tab :S.Tab, title :string, icon :JSX.Element}
+const TabInfo :TabData[] = [
+  {tab: "journal", title: "Journal",  icon: Icons.journal},
+  {tab: "read",    title: "To Read",  icon: Icons.book},
+  {tab: "watch",   title: "To See",   icon: Icons.movie},
+  {tab: "hear",    title: "To Hear",  icon: Icons.music},
+  {tab: "play",    title: "To Play",  icon: Icons.play},
+  {tab: "dine",    title: "To Dine",  icon: Icons.food},
+  {tab: "build",   title: "To Build", icon: Icons.build},
+]
+function infoFor (tab :S.Tab) :TabData {
+  for (let info of TabInfo) if (info.tab === tab) return info
+  return TabInfo[0]
+}
+
 @observer
 export class AppViewRaw extends React.Component<AVProps> {
 
   render () {
     // we have to check user to ensure an observable depend, meh
-    const {classes, store} = this.props, {user, stores} = store
+    const {classes, store, width} = this.props, {user, stores} = store
     if (!user || !stores) return (
-      <div className={classes.root}>
+      <div className={classes.section}>
         <UI.AppBar className={classes.appBar}>
           <UI.Toolbar>
             <UI.Typography variant="h6" color="inherit">Input/Output</UI.Typography>
@@ -125,36 +137,41 @@ export class AppViewRaw extends React.Component<AVProps> {
       </div>
     )
 
-    const [content, footer] = contentView(store.tab, stores)
-    return (
-      <div className={classes.root}>
-        <UI.AppBar className={classes.appBar}>
-          <UI.Toolbar>
-            <UI.Typography style={{marginRight: 5}} variant="h6" color="inherit">I/O</UI.Typography>
-            {menuButton("journal", Icons.journal, () => store.tab = S.Tab.JOURNAL)}
-            {menuButton("read", Icons.book, () => store.tab = S.Tab.READ)}
-            {menuButton("watch", Icons.movie, () => store.tab = S.Tab.WATCH)}
-            {menuButton("hear", Icons.music, () => store.tab = S.Tab.HEAR)}
-            {menuButton("play", Icons.play, () => store.tab = S.Tab.PLAY)}
-            {menuButton("dine", Icons.food, () => store.tab = S.Tab.DINE)}
-            {menuButton("build", Icons.build, () => store.tab = S.Tab.BUILD)}
-            <UI.Typography className={classes.grow} variant="h6" color="inherit"></UI.Typography>
-            <UI.IconButton color="inherit" onClick={() => firebase.auth().signOut()}>
-              <Icons.CloudOff /></UI.IconButton>
-          </UI.Toolbar>
-        </UI.AppBar>
+    function appView (stores :S.Stores, tab :S.Tab, toolbar :JSX.Element) :JSX.Element {
+      const [content, footer] = contentView(store, stores, width, tab)
+      return <div key={tab} className={classes.section}>
+        <UI.AppBar className={classes.appBar}>{toolbar}</UI.AppBar>
         <main className={classes.content}>{content}</main>
-        <UI.AppBar position="fixed" color="secondary" className={classes.appBar}>
-          {footer}
-        </UI.AppBar>
+        <UI.AppBar color="secondary" className={classes.appBar}>{footer}</UI.AppBar>
+      </div>
+    }
+    function auxView (stores :S.Stores, info :TabData) :JSX.Element {
+      const {tab, icon, title} = info, unpin = () => store.unpin(tab)
+      const footer = <UI.Toolbar>
+        <UI.IconButton color="inherit">{icon}</UI.IconButton>
+        <UI.Typography style={{marginRight: 5}} variant="h6" color="inherit">{title}</UI.Typography>
+        <V.Spacer />
+        <UI.IconButton color="inherit" onClick={unpin}><Icons.Close /></UI.IconButton>
+      </UI.Toolbar>
+      return appView(stores, tab, footer)
+    }
+
+    const mainToolbar = <UI.Toolbar>
+      <UI.Typography style={{marginRight: 5}} variant="h6" color="inherit">I/O</UI.Typography>
+      {TabInfo.filter(info => !store.isPinned(info.tab))
+              .map(info => menuButton(info.tab, info.icon, () => store.tab = info.tab))}
+      <V.Spacer />
+      {menuButton("pin", Icons.pin, () => store.pin(store.tab))}
+      {menuButton("logoff", <Icons.CloudOff />, () => firebase.auth().signOut())}
+    </UI.Toolbar>
+
+    if (store.pinned.length > 0) return (
+      <div className={classes.panes}>
+      {appView(stores, store.tab, mainToolbar)}
+      {store.pinned.map(tab => auxView(stores, infoFor(tab)))}
       </div>
     )
+    else return appView(stores, store.tab, mainToolbar)
   }
 }
 export const AppView = UI.withStyles(avStyles)(UI.withWidth()(AppViewRaw))
-
-        // <UI.Grid container>
-        // <UI.Grid item xs={4}>{content}</UI.Grid>
-        // {stores && (<UI.Grid item xs={4}>{contentView(S.Tab.READ, stores)}</UI.Grid>)}
-        // {stores && (<UI.Grid item xs={4}>{contentView(S.Tab.BUILD, stores)}</UI.Grid>)}
-        // </UI.Grid>

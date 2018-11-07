@@ -148,13 +148,13 @@ export class DB {
 
   coll (type :M.ItemType) :ItemCollection {
     switch (type) {
-    case M.ItemType.BUILD: return this.build
-    case M.ItemType.READ: return this.read
-    case M.ItemType.WATCH: return this.watch
-    case M.ItemType.HEAR: return this.hear
-    case M.ItemType.PLAY: return this.play
-    case M.ItemType.DINE: return this.dine
-    default: return this.build // TODO
+    case "build": return this.build
+    case  "read": return this.read
+    case "watch": return this.watch
+    case  "hear": return this.hear
+    case  "play": return this.play
+    case  "dine": return this.dine
+    default: throw new Error(`Unknown type ${type}`)
     }
   }
 

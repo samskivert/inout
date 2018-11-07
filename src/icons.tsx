@@ -13,6 +13,7 @@ import DateRange from '@material-ui/icons/DateRange'
 import Delete from '@material-ui/icons/Delete'
 import Done from '@material-ui/icons/Done'
 import Edit from '@material-ui/icons/Edit'
+import FiberPin from '@material-ui/icons/FiberPin'
 import GridOn from '@material-ui/icons/GridOn'
 import ImportContacts from '@material-ui/icons/ImportContacts'
 import Link from '@material-ui/icons/Link'
@@ -28,10 +29,11 @@ import VideogameAsset from '@material-ui/icons/VideogameAsset'
 export { default as Add } from '@material-ui/icons/Add'
 export { default as ArrowLeft } from '@material-ui/icons/ArrowLeft'
 export { default as ArrowRight } from '@material-ui/icons/ArrowRight'
+export { default as Book } from '@material-ui/icons/ChromeReaderMode'
 export { default as CalendarToday } from '@material-ui/icons/CalendarToday'
+export { default as Close } from '@material-ui/icons/Close'
 export { default as CloudOff } from '@material-ui/icons/CloudOff'
 export { default as Today } from '@material-ui/icons/Today'
-export { default as Book } from '@material-ui/icons/ChromeReaderMode'
 
 export const article = <Bookmark fontSize="inherit" />
 export const book = <ImportContacts fontSize="inherit" />
@@ -50,6 +52,7 @@ export const menu = <Adjust fontSize="inherit" />
 export const movie = <LocalMovies fontSize="inherit" />
 export const music = <MusicNote fontSize="inherit" />
 export const paper = <ListAlt fontSize="inherit" />
+export const pin = <FiberPin fontSize="inherit" />
 export const play = <VideogameAsset fontSize="inherit" />
 export const start = <PlayArrow fontSize="inherit" />
 export const trash = <Delete fontSize="inherit" />

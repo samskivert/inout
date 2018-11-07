@@ -37,7 +37,5 @@ export function formatDate (date :Stamp) :string {
 // UI stuff
 
 export function menuButton (key :string, icon :JSX.Element, onClick :() => void) :JSX.Element {
-  return <UI.IconButton key={key} color="inherit" aria-label="Menu" onClick={onClick}>
-    {icon}
-  </UI.IconButton>
+  return <UI.IconButton key={key} color="inherit" onClick={onClick}>{icon}</UI.IconButton>
 }

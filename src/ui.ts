@@ -1,3 +1,4 @@
+export { ThemeStyle } from '@material-ui/core/styles/createTypography'
 export { default as AppBar } from '@material-ui/core/AppBar/AppBar'
 export { default as Button } from '@material-ui/core/Button/Button'
 export { default as Checkbox } from '@material-ui/core/Checkbox/Checkbox'
