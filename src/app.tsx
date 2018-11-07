@@ -65,7 +65,7 @@ const LoginView = UI.withStyles(lvStyles)(LoginViewRaw)
 
 function contentView (store :S.AppStore, stores :S.Stores, width :string,
                       tab :S.Tab) :[JSX.Element, JSX.Element] {
-  const wide = width !== "xs" && !store.isPinned(tab)
+  const wide = width !== "xs" && !store.isPinned(tab) && (store.pinned.length < 2)
   if (tab === "journal") return [<V.JournalView store={stores.journal} wide={wide}/>,
                                  <V.JournalFooter store={stores.journal} wide={wide} />]
   const type = tab
