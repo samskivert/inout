@@ -37,8 +37,6 @@ const lvStyles = ({ palette, spacing }: UI.Theme) => UI.createStyles({
   },
   content: {
     maxWidth: 600,
-  },
-  intro: {
     margin: spacing.unit * 2,
   },
 })
@@ -49,12 +47,15 @@ class LoginViewRaw extends React.Component<UI.WithStyles<typeof lvStyles>> {
     return (
       <div className={classes.content}>
         <UI.Grid container spacing={16}>
-          <UI.Grid item xs={12} className={classes.intro}>
+          <UI.Grid item xs={12}>
             <UI.Typography variant="overline">{IntroTitle}</UI.Typography>
             <UI.Typography variant="body1">{IntroText}</UI.Typography>
           </UI.Grid>
           <UI.Grid item xs={12}>
             <StyledFirebaseAuth uiConfig={authConfig} firebaseAuth={firebase.auth()}/>
+          </UI.Grid>
+          <UI.Grid item xs={12}>
+            <UI.Typography variant="body1"><a href="privacy.html">Privacy policy</a></UI.Typography>
           </UI.Grid>
         </UI.Grid>
       </div>
