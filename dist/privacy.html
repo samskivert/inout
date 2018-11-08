@@ -22,6 +22,18 @@
     </p>
 
     <p>
+      <em>Note:</em> when you authenticate using the Google or Facebook auth provider, it will
+      state that Input/Output will receive your name, email address and (in the case of Facebook)
+      profile picture. Unfortunately we cannot request <em>less</em> information about you than
+      this, but we do not use or store any of that information in the app. If we could instruct
+      the auth providers not to provide this information we would, but tragically there is no
+      way to do so. If you are of a technical bent, you can inspect the
+      <a href="https://github.com/samskivert/inout">source code</a> of the app and see that we
+      never access any information from the auth provider aside from the unique identifier
+      assigned to your account.
+    </p>
+
+    <p>
       The app is built using Google's Firebase platform, which means that we rely on Google not
       to surreptitiously collect data behind the scenes. However, they attest that the Firebase
       platform is compliant with GDPR and introduces no additional reporting requirements other
