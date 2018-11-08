@@ -27,17 +27,19 @@ const authConfig = {
 const IntroTitle =
   "Welcome to Input/Output"
 
-const IntroText =
-  "An app for tracking the things that go into, and come out of your head. We need some way " +
+const AuthText =
+  "We need some way " +
   "to differentiate your head from all the other heads in the world. Please use one of the " +
   "following providers of a unique identifier that we can use for that purpose and that " +
   "purpose only."
 
 const PrivacyText =
-  "Note: we do not make use of any information or capabilities from these auth providers " +
+  "We do not make use of any information or capabilities from these auth providers " +
   "other than to obtain a unique identifier for your account. We don't use your name, " +
   "email address, profile photo, nor read your tweets, etc. If we could request fewer " +
   "permissions we would."
+
+const PostUrl = "http://samskivert.com/blog/2018/11/pim-samsara/"
 
 const lvStyles = ({ palette, spacing }: UI.Theme) => UI.createStyles({
   root: {
@@ -57,12 +59,26 @@ class LoginViewRaw extends React.Component<UI.WithStyles<typeof lvStyles>> {
         <UI.Grid container spacing={16}>
           <UI.Grid item xs={12}>
             <UI.Typography variant="overline">{IntroTitle}</UI.Typography>
-            <UI.Typography variant="body1">{IntroText}</UI.Typography>
+            <UI.Typography variant="body1">
+              An app for tracking the things that go into, and come out of your head.
+            </UI.Typography>
+          </UI.Grid>
+          <UI.Grid item xs={12}>
+            <UI.Typography variant="body1">
+              If you stumbled across this app with no context and are wondering what it is,
+              you can read the <a href={PostUrl}>blog post</a> I wrote about it when it was
+              first created.
+            </UI.Typography>
+          </UI.Grid>
+          <UI.Grid item xs={12}>
+            <UI.Typography variant="h6">Log In</UI.Typography>
+            <UI.Typography variant="body1">{AuthText}</UI.Typography>
           </UI.Grid>
           <UI.Grid item xs={12}>
             <StyledFirebaseAuth uiConfig={authConfig} firebaseAuth={firebase.auth()}/>
           </UI.Grid>
           <UI.Grid item xs={12}>
+            <UI.Typography variant="h6">Privacy</UI.Typography>
             <UI.Typography variant="body1">
               {PrivacyText} — <a href="privacy.html">Privacy policy</a>
             </UI.Typography>
