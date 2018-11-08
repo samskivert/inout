@@ -16,6 +16,7 @@ const authConfig = {
   signInOptions: [
     firebase.auth.GoogleAuthProvider.PROVIDER_ID,
     firebase.auth.FacebookAuthProvider.PROVIDER_ID,
+    firebase.auth.TwitterAuthProvider.PROVIDER_ID,
     firebase.auth.EmailAuthProvider.PROVIDER_ID,
   ],
   callbacks: {
@@ -31,6 +32,12 @@ const IntroText =
   "to differentiate your head from all the other heads in the world. Please use one of the " +
   "following providers of a unique identifier that we can use for that purpose and that " +
   "purpose only."
+
+const PrivacyText =
+  "Note: we do not make use of any information or capabilities from these auth providers " +
+  "other than to obtain a unique identifier for your account. We don't use your name, " +
+  "email address, profile photo, nor read your tweets, etc. If we could request fewer " +
+  "permissions we would."
 
 const lvStyles = ({ palette, spacing }: UI.Theme) => UI.createStyles({
   root: {
@@ -56,7 +63,9 @@ class LoginViewRaw extends React.Component<UI.WithStyles<typeof lvStyles>> {
             <StyledFirebaseAuth uiConfig={authConfig} firebaseAuth={firebase.auth()}/>
           </UI.Grid>
           <UI.Grid item xs={12}>
-            <UI.Typography variant="body1"><a href="privacy.html">Privacy policy</a></UI.Typography>
+            <UI.Typography variant="body1">
+              {PrivacyText} — <a href="privacy.html">Privacy policy</a>
+            </UI.Typography>
           </UI.Grid>
         </UI.Grid>
       </div>
