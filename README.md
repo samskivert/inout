@@ -12,6 +12,15 @@ yarn
 yarn build
 ```
 
+Running a test server is done like so:
+
+```
+yarn start
+```
+
+This will start a server that serves up the app on `http://localhost:3000` and which recompiles the
+code and reloads the reloads the page when it detects changes to the source files.
+
 Deploying is simple (if you're me, since I own the Firebase app):
 
 ```
