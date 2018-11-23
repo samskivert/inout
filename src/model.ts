@@ -42,9 +42,12 @@ function readProp (data :Data, prop :string) :any {
 }
 
 function writeProp (data :Data, prop :string, value :any) {
-  const dotidx = prop.indexOf(".")
-  if (dotidx == -1) data[prop] = value
-  else writeProp(data[prop.substring(0, dotidx)], prop.substring(dotidx+1), value)
+  if (!data) console.warn(`Cannot write prop to null data [data=${data}] '${prop}'='${value}'`)
+  else {
+    const dotidx = prop.indexOf(".")
+    if (dotidx == -1) data[prop] = value
+    else writeProp(data[prop.substring(0, dotidx)], prop.substring(dotidx+1), value)
+  }
 }
 
 class SimpleProp<T> extends Prop<T> {
@@ -156,9 +159,9 @@ export abstract class Item extends Doc {
   readonly created :firebase.firestore.Timestamp
   readonly tags = this.addProp(new TagsProp())
   readonly link = this.newProp<URL|void>("link", undefined)
+  get startedProp () :Prop<Stamp|void>|void { return undefined }
   // we use null here (rather than undefined) because we need a null-valued property
   // in the database to enable queries for property == null (incomplete items)
-  get startedProp () :Prop<Stamp|void>|void { return undefined }
   readonly completed = this.newProp<Stamp|null>("completed", null)
 
   constructor (ref :Ref, data :Data) {
@@ -216,6 +219,11 @@ export class Watch extends Consume {
   readonly title = this.newProp("title", "")
   readonly director = this.newProp<string|void>("director", undefined)
   readonly type = this.newProp<WatchType>("type", "film")
+  readonly started = this.newProp<Stamp|void>("started", undefined)
+  // watch items only have started/abandoned if they're TV shows... special cases!
+  get startedProp () :Prop<Stamp|void>|void {
+    return this.type.value == "show" ? this.started : undefined }
+  readonly abandoned = this.newProp("abandoned", false)
 
   matches (filter :Filter) {
     return (super.matches(filter) || filter(this.title.value) || filter(this.director.value) ||

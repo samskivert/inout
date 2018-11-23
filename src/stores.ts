@@ -430,8 +430,9 @@ export class ToReadStore extends ProtractedItemsStore {
   }
 }
 
-export class ToWatchStore extends ItemsStore {
+export class ToWatchStore extends ProtractedItemsStore {
   get title () :string { return "To See" }
+  get startedTitle () :string { return "Watching" }
   constructor (db :DB.DB) { super(db.watch) }
   protected newItemData (text :string) {
     const dashIdx = text.indexOf(" - ")
