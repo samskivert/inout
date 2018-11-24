@@ -82,7 +82,7 @@ function dateEditor (label :string, prop :IObservableValue<string|void>) :JSX.El
 }
 
 function gridDateEditor (label :string, prop :IObservableValue<string|void>,
-                     cells :UI.GridSize = 6) :JSX.Element {
+                         cells :UI.GridSize = 6) :JSX.Element {
   return <UI.Grid key={label} item xs={cells}>{dateEditor(label, prop)}</UI.Grid>
 }
 
@@ -114,11 +114,13 @@ function gridEnumEditor (label :string, options :{value :string, label :string}[
   return <UI.Grid key={label} item xs={cells}>{enumEditor(label, options, prop)}</UI.Grid>
 }
 
-function boolEditor (label :string, prop :IObservableValue<boolean>, cells :UI.GridSize = 6) {
+function boolEditor (label :string, prop :IObservableValue<boolean>) {
   const check = <UI.Checkbox checked={prop.get()} onChange={ev => prop.set(ev.target.checked)} />
-  return <UI.Grid key={label} item xs={cells}>
-    <UI.FormControlLabel control={check} label={label} />
-  </UI.Grid>
+  return <UI.FormControlLabel control={check} label={label} />
+}
+
+function gridBoolEditor (label :string, prop :IObservableValue<boolean>, cells :UI.GridSize = 6) {
+  return <UI.Grid key={label} item xs={cells}>{boolEditor(label, prop)}</UI.Grid>
 }
 
 // ---------------------
@@ -521,7 +523,7 @@ class ReadView extends ItemView {
     items.push(gridOptTextEditor("Link", item.link.editValue, 6))
     items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
     items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
-    items.push(boolEditor("Abandoned", item.abandoned.editValue))
+    items.push(gridBoolEditor("Abandoned", item.abandoned.editValue))
     items.push(gridDateEditor("Started", item.started.editValue))
     items.push(gridCompletedEditor(item.completed.editValue))
     super.addDialogItems(items)
@@ -592,7 +594,7 @@ class WatchView extends ItemView {
     items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
     items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
     if (item.startedProp) {
-      items.push(boolEditor("Abandoned", item.abandoned.editValue))
+      items.push(gridBoolEditor("Abandoned", item.abandoned.editValue))
       items.push(gridDateEditor("Started", item.started.editValue))
     }
     items.push(gridCompletedEditor(item.completed.editValue))
@@ -731,7 +733,7 @@ class PlayView extends ItemView {
     items.push(gridOptTextEditor("Link", item.link.editValue, 6))
     items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
     items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
-    items.push(boolEditor("Saw Credits?", item.credits.editValue))
+    items.push(gridBoolEditor("Saw Credits?", item.credits.editValue))
     items.push(gridDateEditor("Started", item.started.editValue))
     items.push(gridCompletedEditor(item.completed.editValue))
     super.addDialogItems(items)
