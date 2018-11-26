@@ -220,10 +220,12 @@ export class Watch extends Consume {
   readonly director = this.newProp<string|void>("director", undefined)
   readonly type = this.newProp<WatchType>("type", "film")
   readonly started = this.newProp<Stamp|void>("started", undefined)
-  // watch items only have started/abandoned if they're TV shows... special cases!
-  get startedProp () :Prop<Stamp|void>|void {
-    return this.type.value == "show" ? this.started : undefined }
   readonly abandoned = this.newProp("abandoned", false)
+  // watch items are protracted if they're TV shows... special cases!
+  get isProtracted () :boolean { return this.type.value === "show" }
+  get startedProp () :Prop<Stamp|void>|void { return this.isProtracted ? this.started : undefined }
+  // when we're editing we have to use the edit value not the sync value... blah
+  get isEditProtracted () :boolean { return this.type.editValue.get() === "show" }
 
   matches (filter :Filter) {
     return (super.matches(filter) || filter(this.title.value) || filter(this.director.value) ||

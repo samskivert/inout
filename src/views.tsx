@@ -593,7 +593,7 @@ class WatchView extends ItemView {
     items.push(gridOptTextEditor("Link", item.link.editValue, 6))
     items.push(gridOptTextEditor("Recommender", item.recommender.editValue, 6))
     items.push(gridEnumEditor("Rating", RatingTypes, item.rating.editValue))
-    if (item.startedProp) {
+    if (item.isEditProtracted) {
       items.push(gridBoolEditor("Abandoned", item.abandoned.editValue))
       items.push(gridDateEditor("Started", item.started.editValue))
     }
