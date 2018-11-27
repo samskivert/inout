@@ -293,7 +293,6 @@ class JournalFooterRaw extends React.Component<JVProps> {
       return <UI.Toolbar>
         {snack}
         {modeSelect}
-        {footText("Add:")}
         <UI.Input type="text" className={classes.footText} placeholder="Journal Entry"
                   value={store.newEntry} disableUnderline={true}
                   onChange={ev => store.newEntry = ev.currentTarget.value}
@@ -935,7 +934,6 @@ class ItemsFooterRaw extends React.Component<IVProps> {
       return <UI.Toolbar>
         {snack}
         {modeSelect}
-        {footText("Add:")}
         <UI.Input className={classes.footText} placeholder={ui.addPlaceholder}
                   value={store.newItem} disabled={!store} disableUnderline={true}
                   onChange={ev => store.newItem = ev.currentTarget.value}
