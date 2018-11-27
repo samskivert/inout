@@ -194,7 +194,7 @@ class EntryViewRaw extends React.Component<EVProps> {
 }
 const EntryView = UI.withStyles(evProps)(EntryViewRaw)
 
-const jvStyles = UI.createStyles({
+const jvStyles = (theme :UI.Theme) => UI.createStyles({
   white: {
     color: "white"
   },
@@ -204,6 +204,7 @@ const jvStyles = UI.createStyles({
     marginLeft: 8,
   },
   footText: {
+    marginLeft: theme.spacing.unit,
     flexGrow: 1,
     color: "white",
     borderBottom: "1px solid white"
@@ -309,14 +310,12 @@ class JournalFooterRaw extends React.Component<JVProps> {
                    onChange={ev => store.histYear = parseInt(ev.target.value)}>
           {histYears.map(year => <option key={year} value={year}>{year}</option>)}
         </UI.Select>
-        {footText("Filter:")}
-        <UI.Input type="text" className={classes.footText}
+        <UI.Input type="text" className={classes.footText} placeholder="Filter"
                   value={store.histFilterPend} disableUnderline={true}
                   onChange={ev => store.setHistFilter(ev.currentTarget.value)}
                   onKeyPress={ev => { if (ev.key === "Enter") store.applyHistFilter() }} />
-        {wide && footText("Import:")}
         {wide &&
-         <UI.Input type="text" className={classes.footText}
+         <UI.Input type="text" className={classes.footText} placeholder="Import"
                    value={store.legacyData} disableUnderline={true}
                    onChange={ev => store.legacyData = ev.currentTarget.value}
                    onKeyPress={ev => { if (ev.key === "Enter") store.importLegacy() }} />}
@@ -825,7 +824,7 @@ export const itemUI = {
   "dine":  DineUI,
 }
 
-const ivStyles = UI.createStyles({
+const ivStyles = (theme :UI.Theme) => UI.createStyles({
   grow: {
     flexGrow: 1,
   },
@@ -833,6 +832,7 @@ const ivStyles = UI.createStyles({
     unit: 4,
   },
   footText: {
+    marginLeft: theme.spacing.unit,
     flexGrow: 1,
     color: "white",
     borderBottom: "1px solid white"
@@ -945,8 +945,7 @@ class ItemsFooterRaw extends React.Component<IVProps> {
       return <UI.Toolbar>
         {snack}
         {modeSelect}
-        {footText("Filter:")}
-        <UI.Input className={classes.footText} disabled={store.history.pending}
+        <UI.Input placeholder="Filter" className={classes.footText} disabled={store.history.pending}
                   value={store.histFilterPend} disableUnderline={true}
                   onChange={ev => store.setHistFilter(ev.currentTarget.value)}
                   onKeyPress={ev => { if (ev.key === "Enter") store.applyHistFilter() }} />
@@ -960,9 +959,8 @@ class ItemsFooterRaw extends React.Component<IVProps> {
         {text(String(store.bulkYear || "<new>"))}
         {U.menuButton("next", <Icons.ArrowRight />, () => store.rollBulkYear(1))}
         <Spacer />
-        {footText("Import:")}
         <UI.Input value={store.legacyData} className={classes.footText} disableUnderline={true}
-                  onChange={ev => store.legacyData = ev.currentTarget.value} />
+                  placeholder="Import" onChange={ev => store.legacyData = ev.currentTarget.value} />
         <UI.Button color="inherit" onClick={ev => store.importLegacy()}>Submit</UI.Button>
       </UI.Toolbar>
     }
