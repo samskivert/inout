@@ -193,7 +193,7 @@ class EntryViewRaw extends React.Component<EVProps> {
     const {scrollTo} = this.props
     if (scrollTo) {
       const root = this.domRef.current
-      root && root.scrollIntoView({behavior: "smooth", block: "end", inline: "nearest"});
+      root && root.scrollIntoView();
     }
   }
 

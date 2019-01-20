@@ -17,7 +17,7 @@ function assertDefined<T> (value :T|undefined) :T {
 
 function updateRef (ref :Ref, data :Data) {
   ref.update(data).
-    then(() => console.log(`Yay, updated ${ref.id} (with ${JSON.stringify(data)})`)).
+    // then(() => console.log(`Yay, updated ${ref.id} (with ${JSON.stringify(data)})`)).
     catch(err => console.warn(`Failed to update ${ref.id}: ${err}`))
 }
 
@@ -294,7 +294,7 @@ export class Journum extends Doc {
     if (live) {
       console.log(`Subscribing to doc: ${this.ref.id}`)
       this._unsubscribe = this.ref.onSnapshot(doc => {
-        console.log(`Doc updated: ${this.ref.id}`) // : ${JSON.stringify(doc.data())}`)
+        // console.log(`Doc updated: ${this.ref.id}`) // : ${JSON.stringify(doc.data())}`)
         this.read(doc.data() || {})
       })
     } else this.read(data)
