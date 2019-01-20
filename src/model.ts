@@ -334,7 +334,7 @@ export class Journum extends Doc {
     this.order = order
   }
 
-  addEntry (text :string, tags :string[]) {
+  addEntry (text :string, tags :string[]) :string {
     // we use seconds since midnight on this entry's date as a "mostly" unique key; since only one
     // user is likely to be adding to a journal, the only way they're likely to "conflict" with
     // themselves is by adding entries from device A, which is offline, then adding them from device
@@ -347,6 +347,7 @@ export class Journum extends Doc {
     this.entryMap.set(key, new Entry(this, key, edata))
     this.order.push(key)
     updateRef(this.ref, {[`entries.${key}`]: edata, "order": toJS(this.order)})
+    return key
   }
 
   deleteEntry (key :string) :Thunk {

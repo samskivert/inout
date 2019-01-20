@@ -105,6 +105,7 @@ export class JournalStore {
   @observable currentDate :U.Stamp
   @observable current :M.Journum|void = undefined
   @observable newEntry :string = ""
+  @observable scrollToKey :string = ""
 
   // we track entry stores by key so that we can preserve them across changes to Journum.entries
   // (mainly reorderings)
@@ -160,7 +161,7 @@ export class JournalStore {
     if (this.newEntry.length === 0 || !this.current) return
     const tags :string[] = []
     let text = popTags(this.newEntry, tags)
-    this.current.addEntry(text, tags)
+    this.scrollToKey = this.current.addEntry(text, tags)
     this.newEntry = ""
   }
 

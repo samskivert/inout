@@ -23,6 +23,7 @@ export { default as ListSubheader } from '@material-ui/core/ListSubheader/ListSu
 export { default as MenuItem } from '@material-ui/core/MenuItem/MenuItem'
 export { default as MuiThemeProvider } from '@material-ui/core/styles/MuiThemeProvider'
 export { default as OutlinedInput } from '@material-ui/core/OutlinedInput/OutlinedInput'
+export { default as RootRef } from '@material-ui/core/RootRef/RootRef'
 export { default as Select } from '@material-ui/core/Select/Select'
 export { default as Snackbar } from '@material-ui/core/Snackbar/Snackbar'
 export { default as Tab } from '@material-ui/core/Tab/Tab'

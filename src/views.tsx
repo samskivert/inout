@@ -152,10 +152,13 @@ const evProps = (theme :UI.Theme) => UI.createStyles({
 
 interface EVProps extends UI.WithStyles<typeof evProps> {
   store :S.EntryStore
+  scrollTo :boolean
 }
 
 @observer
 class EntryViewRaw extends React.Component<EVProps> {
+
+  domRef = React.createRef<HTMLDivElement>()
 
   render () {
     const {store, classes} = this.props
@@ -166,22 +169,32 @@ class EntryViewRaw extends React.Component<EVProps> {
     const textProp = store.entry.text.editValue
     const tagsProp = store.entry.tags.editValue
     return (
-      <UI.ListItem disableGutters>
-        {buttons}
-        {store.editing ?
-          <UI.Input fullWidth autoFocus value={textProp.get()}
-                    onChange={ev => textProp.set(ev.currentTarget.value)}
-                    onKeyDown={ev => store.handleEdit(ev.key)} /> :
-          <UI.ListItemText primary={store.entry.text.value}
-                           onClick={ev => ev.shiftKey && store.startEdit()} />}
-        {store.editing ?
-          <UI.Input value={tagsProp.get() || ""} placeholder="Tags" className={classes.tagEditor}
-                    onChange={ev => tagsProp.set(ev.currentTarget.value)}
-                    onKeyDown={ev => store.handleEdit(ev.key)} /> :
-         store.entry.tags.value.map(tag => <Tag key={tag} tag={tag} />)}
-        {store.editing && U.menuButton("done", Icons.done, () => store.commitEdit())}
-     </UI.ListItem>
+      <UI.RootRef rootRef={this.domRef}>
+        <UI.ListItem disableGutters>
+          {buttons}
+          {store.editing ?
+            <UI.Input fullWidth autoFocus value={textProp.get()}
+                      onChange={ev => textProp.set(ev.currentTarget.value)}
+                      onKeyDown={ev => store.handleEdit(ev.key)} /> :
+            <UI.ListItemText primary={store.entry.text.value}
+                             onClick={ev => ev.shiftKey && store.startEdit()} />}
+          {store.editing ?
+            <UI.Input value={tagsProp.get() || ""} placeholder="Tags" className={classes.tagEditor}
+                      onChange={ev => tagsProp.set(ev.currentTarget.value)}
+                      onKeyDown={ev => store.handleEdit(ev.key)} /> :
+           store.entry.tags.value.map(tag => <Tag key={tag} tag={tag} />)}
+          {store.editing && U.menuButton("done", Icons.done, () => store.commitEdit())}
+       </UI.ListItem>
+      </UI.RootRef>
     )
+  }
+
+  componentDidMount () {
+    const {scrollTo} = this.props
+    if (scrollTo) {
+      const root = this.domRef.current
+      root && root.scrollIntoView({behavior: "smooth", block: "end", inline: "nearest"});
+    }
   }
 
   protected addMenuButtons (buttons :JSX.Element[]) {
@@ -241,7 +254,8 @@ class JournalViewRaw extends React.Component<JVProps> {
         </UI.ListItem>
         {journum === undefined ? textListItem("Loading...") :
          entries.length === 0 ? textListItem("No entries...") :
-         entries.map(es => <EntryView key={es.key} store={es} />)}
+         entries.map(es => <EntryView key={es.key} store={es}
+                                      scrollTo={store.scrollToKey === es.key} />)}
       </UI.List>
     case "history":
       const dates :JSX.Element[] = []
