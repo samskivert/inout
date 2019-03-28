@@ -56,10 +56,6 @@ export class EntryStore {
     this.showMenu = false
     this.editing = true
   }
-  handleEdit (key :string) {
-    if (key === "Escape") this.cancelEdit()
-    else if (key === "Enter") this.commitEdit()
-  }
   commitEdit () {
     this.entry.commitEdit()
     this.editing = false

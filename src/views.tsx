@@ -26,7 +26,7 @@ function cycleButton (options :Object, current :string,
   const keys = Object.keys(options)
   const curidx = keys.indexOf(current)
   return <UI.Button color="inherit" variant="outlined" onClick={
-    ev => setter(keys[(curidx+1)%keys.length])}>{options[current]}</UI.Button>
+    _ => setter(keys[(curidx+1)%keys.length])}>{options[current]}</UI.Button>
 }
 
 function text (text :string, variant :UI.ThemeStyle = "h6") :JSX.Element {
@@ -137,7 +137,7 @@ function snackView (store :S.SnackStore) :JSX.Element {
                                        onClick={() => { undo() ; hide() }}>UNDO</UI.Button>)
   return <UI.Snackbar key="feedback" anchorOrigin={{vertical: 'bottom', horizontal: 'left'}}
                       open={store.showing} autoHideDuration={6000}
-                      onClose={(ev, r) => { if (r !== "clickaway") hide() }}
+                      onClose={(_, r) => { if (r !== "clickaway") hide() }}
                       onExited={() => store.showNext()}
                       message={<span id="message-id">{store.current.message}</span>}
                       action={actions} />
@@ -168,6 +168,10 @@ class EntryViewRaw extends React.Component<EVProps> {
     if (store.showMenu) this.addMenuButtons(buttons)
     const textProp = store.entry.text.editValue
     const tagsProp = store.entry.tags.editValue
+    const maybeCommit = (ev :React.KeyboardEvent) => {
+      if (ev.key === "Escape") { store.cancelEdit() ; ev.preventDefault() }
+      else if (ev.key === "Enter") store.commitEdit()
+    }
     return (
       <UI.RootRef rootRef={this.domRef}>
         <UI.ListItem disableGutters>
@@ -175,13 +179,13 @@ class EntryViewRaw extends React.Component<EVProps> {
           {store.editing ?
             <UI.Input fullWidth autoFocus value={textProp.get()}
                       onChange={ev => textProp.set(ev.currentTarget.value)}
-                      onKeyDown={ev => store.handleEdit(ev.key)} /> :
+                      onKeyDown={maybeCommit} /> :
             <UI.ListItemText primary={store.entry.text.value}
                              onClick={ev => ev.shiftKey && store.startEdit()} />}
           {store.editing ?
             <UI.Input value={tagsProp.get() || ""} placeholder="Tags" className={classes.tagEditor}
                       onChange={ev => tagsProp.set(ev.currentTarget.value)}
-                      onKeyDown={ev => store.handleEdit(ev.key)} /> :
+                      onKeyDown={maybeCommit} /> :
            store.entry.tags.value.map(tag => <Tag key={tag} tag={tag} />)}
           {store.editing && U.menuButton("done", Icons.done, () => store.commitEdit())}
        </UI.ListItem>
@@ -246,7 +250,7 @@ class JournalViewRaw extends React.Component<JVProps> {
           {store.pickingDate ?
            <UI.TextField autoFocus color="inherit" type="date" value={store.pickingDate}
                          onChange={ev => store.updatePick(ev.currentTarget.value)}
-                         onBlur={ev => store.commitPick()} /> :
+                         onBlur={_ => store.commitPick()} /> :
            <UI.Button className={classes.dateButton} onClick={() => store.startPick()}>
              {text(U.formatDate(store.currentDate))}</UI.Button>}
           {U.menuButton("next", <Icons.ArrowRight />, () => store.rollDate(+1))}
@@ -267,7 +271,7 @@ class JournalViewRaw extends React.Component<JVProps> {
           const filtered = jm.entries.filter(entry => entry.matches(filter))
           if (filtered.length > 0) {
             dates.push(<UI.ListItem key={jm.date} disableGutters>
-              <UI.IconButton color="inherit" onClick={ev => {
+              <UI.IconButton color="inherit" onClick={_ => {
                 store.setDate(jm.date)
                 store.mode = "current"
               }}><Icons.Today /></UI.IconButton>
@@ -291,7 +295,7 @@ class JournalViewRaw extends React.Component<JVProps> {
 export const JournalView = UI.withStyles(jvStyles)(JournalViewRaw)
 
 const thisYear = new Date().getFullYear()
-const histYears = Array.from(new Array(thisYear-2000)).map((v, ii) => thisYear-ii)
+const histYears = Array.from(new Array(thisYear-2000)).map((_, ii) => thisYear-ii)
 
 @observer
 class JournalFooterRaw extends React.Component<JVProps> {
@@ -426,16 +430,16 @@ class ItemEditDialogRaw extends React.Component<IEDProps> {
                 </UI.Grid>)
     return (
       <UI.Dialog key="edit-dialog" fullWidth fullScreen={fullScreen}
-                 open={store.editing} onClose={ev => store.cancelEdit()}>
+                 open={store.editing} onClose={_ => store.cancelEdit()}>
         <UI.DialogTitle id="edit-dialog-title">Edit</UI.DialogTitle>
         <UI.DialogContent>
           <UI.Grid container spacing={24}>{ditems}</UI.Grid>
         </UI.DialogContent>
         <UI.DialogActions>
-          <UI.IconButton onClick={ev => store.deleteItem()}>{Icons.trash}</UI.IconButton>
+          <UI.IconButton onClick={_ => store.deleteItem()}>{Icons.trash}</UI.IconButton>
           <Spacer />
-          <UI.Button onClick={ev => store.cancelEdit()}>Cancel</UI.Button>
-          <UI.Button onClick={ev => store.commitEdit()} color="primary">Update</UI.Button>
+          <UI.Button onClick={_ => store.cancelEdit()}>Cancel</UI.Button>
+          <UI.Button onClick={_ => store.commitEdit()} color="primary">Update</UI.Button>
         </UI.DialogActions>
       </UI.Dialog>
     )
@@ -975,7 +979,7 @@ class ItemsFooterRaw extends React.Component<IVProps> {
         <Spacer />
         <UI.Input value={store.legacyData} className={classes.footText} disableUnderline={true}
                   placeholder="Import" onChange={ev => store.legacyData = ev.currentTarget.value} />
-        <UI.Button color="inherit" onClick={ev => store.importLegacy()}>Submit</UI.Button>
+        <UI.Button color="inherit" onClick={_ => store.importLegacy()}>Submit</UI.Button>
       </UI.Toolbar>
     }
   }
