@@ -11,7 +11,7 @@ import * as UI from "./ui"
 
 firebase.initializeApp({
   apiKey: "AIzaSyDy3Caew0ql16PM0x7laFXTcs6jih_-e8o",
-  authDomain: "input-output-26476.firebaseapp.com",
+  authDomain: "inputoutput.app",
   projectId: "input-output-26476",
 })
 
